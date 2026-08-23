@@ -36,11 +36,22 @@ python tools/rpgsp_index.py E:/CDIMAGE.TBL --dat E:/RPGSP.DAT \
 # textures -> PNG
 python tools/p64_decode.py out/img_2d/bg/bg_000.mpic -o png/
 
+# .iab movie -> playable MPEG-2 (the video track has no start codes)
+python tools/iab_video.py out/logo/logo.iab -o logo.m2v
+ffmpeg -i logo.m2v -vf scale=in_range=full:out_range=limited \
+       -pix_fmt yuv420p logo.mp4
+
+# .iab audio track -> WAV
+python tools/iab_audio.py out/logo/logo.iab -o logo.wav
+
 # ASCII strings with offsets
 python tools/pstrings.py E:/SLUS_211.78 -n 6 --offsets
 ```
 
+ffmpeg is only needed for the movie pipeline; the Python tools have no
+dependencies at all.
+
 ## Status
 
-Session 1 — disc and format analysis. See
+Sessions 1-2 — disc, formats and the movie codec. See
 [docs/00-sessions.md](docs/00-sessions.md) for the progress log.

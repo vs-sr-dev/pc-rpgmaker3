@@ -61,37 +61,47 @@ Important details:
 
 Implemented and verified in `tools/p64_decode.py`.
 
-## .iab — interleaved audio/video stream ✅ (audio) / 🔍 (video)
+## .iab — interleaved audio/video stream ✅
 
-64-byte header:
+64-byte file header:
 
     u32 hdr_qwords;   // 0x10 -> 16 quadwords = 64 bytes
     u32 sample_rate;  // 22050 / 24000 / 44100 / 48000
     u32 channels;     // 2
     u32 interleave;   // 8192
-    u32 audio_blocks; // blocks of `interleave` bytes per channel
+    u32 audio_blocks;
     f32 audio_secs;
     u32 nsub;         // 1
     u32 total_size;
     // if a video track is present:
     u32 frames;
-    u32 unk1, unk2;   // 🔍 scale with bitrate
+    u32 max_frame_bytes;
+    u32 min_frame_bytes;
     f32 fps;          // 29.97 or 59.94
     f32 video_secs;
     u32 width;        // 640
     u32 height;       // 448
     u32 total_size;
 
-The body is a sequence of 8192-byte blocks alternating between the audio
-and video tracks.
+The body is a **chain of variable-size chunks**, each with a 16-byte header:
+
+    u32 magic;        // 0x12481248 = audio, 0x84218421 = video
+    f32 timestamp;    // seconds from stream start
+    u32 size;         // payload bytes
+    u32 stride;       // align16(size + 16) -> offset to the next chunk
+
+Walking the chain from 0x40 lands exactly on the end of the file. One video
+chunk = one frame.
 
 **Audio**: PS2 SPU-ADPCM (VAG) — 16-byte blocks, first byte
-`shift | filter<<4`, second byte loop flags. 28 samples per 16 bytes; the
-durations declared in the header match exactly.
+`shift | filter<<4`, second byte loop flags, 28 samples per block. An audio
+chunk holds `interleave` bytes for the left channel followed by `interleave`
+for the right. Decoded by `tools/iab_audio.py`; output length matches the
+declared duration to the sample.
 
-**Video**: 640x448, but **not an MPEG-2 elementary stream**: no
-`00 00 01 B3` / `B8` / `BA` start codes appear anywhere in the file. Codec
-still unidentified (see `docs/05-open-questions.md`).
+**Video**: MPEG-2 intra with every start code stripped and no slice layer.
+See [06-iab-video.md](06-iab-video.md) for the full analysis. Decoded by
+`tools/iab_video.py`, which rebuilds a playable MPEG-2 elementary stream.
 
 ## .smp — database preset records ✅
 

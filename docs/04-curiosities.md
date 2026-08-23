@@ -116,8 +116,50 @@ coincidence: a project lives in a constant-capacity arena, and that is
 precisely what the editor UI's "Memory" gauge measures. The creative limit
 of the game is, literally, a 1.9 MB buffer.
 
-## 10. The video codec is not MPEG
+## 10. The video codec had no start codes
 
-The `.iab` files with a video track declare 640x448 at 29.97 or 59.94 fps,
-yet contain no MPEG-2 start codes at all. `opening8m.iab` reaches **8448
-frames at 59.94 fps** (141 seconds). The codec is still unidentified.
+The `.iab` movies declare 640x448 at 29.97 or 59.94 fps but contain no MPEG
+start codes at all, so nothing will play them. They turned out to be
+**MPEG-2 intra with the entire sequence, picture and slice layer stripped
+out** — see [06-iab-video.md](06-iab-video.md). Two details make it unusual:
+`intra_vlc_format = 1`, and no slice layer at all — each macroblock row
+re-sends the quantiser through a `macroblock_type = '01'` on its first
+macroblock instead.
+
+## 11. The Japanese logo movie ships unused
+
+`logo/logo.iab` is a 7.5-second animation of two meshing gears that resolves
+into a card reading **「ツクールシリーズ」** ("Tsukuru Series", the Japanese
+name of the RPG Maker line). It decodes perfectly, audio included.
+
+It is never played. The USA release boots three **static** `.mpic` images
+instead — Enterbrain, Runtime and Agetec — as confirmed by capturing the
+boot sequence. So the Japanese series ident is still on the disc, fully
+intact, and no player will ever see it.
+
+The same goes for `logo/rpg_640_448.iab`: two minutes of Japanese staff roll
+credits.
+
+## 12. `tukuru.mpic` is the Agetec logo
+
+The file named after the Japanese brand actually contains the American
+publisher's logo. Its embedded source path gives it away:
+
+    C:\Documents and Settings\<kanji name>\<Desktop>\ageteclogoforscreeneps.mpic
+
+The localisation reused the existing asset slot and never renamed it. The
+decode matches a PCSX2 frame capture to within 0.9 per colour channel.
+
+## 13. The 2D character art is filed by illustrator
+
+`img_2d/` has eight subdirectories of 88 images each, named `nouguchi`,
+`nihei`, `nagasaku1`, `nagasaku2`, `kitazawa`, `iwasaki`, `hanaka`. They are
+**people**: the staff roll video names 納口龍司 and 北沢直樹 under
+「3Dキャラクターデザイン」. Each artist's portrait set got its own folder,
+and that structure shipped on the disc.
+
+## 14. Runtime, Inc. — "Entertainment & Architecture"
+
+The developer's boot logo carries that tagline. The studio behind a 3D RPG
+construction kit also did architectural visualisation — which, given that
+the game is essentially a real-time level editor, is not a coincidence.
