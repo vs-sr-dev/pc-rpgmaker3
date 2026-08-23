@@ -1,0 +1,15 @@
+# BYOA: nessun contenuto del disco originale entra nel repo.
+build/
+*.iso
+*.dat
+*.DAT
+*.tbl
+*.TBL
+*.p64
+*.mpic
+*.iab
+*.smp
+*.bin
+*.irx
+*.png
+SLUS_*
