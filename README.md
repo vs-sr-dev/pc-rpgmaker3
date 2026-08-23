@@ -54,4 +54,24 @@ dependencies at all.
 ## Status
 
 Sessions 1-2 — disc, formats and the movie codec. See
-[docs/00-sessions.md](docs/00-sessions.md) for the progress log.
+[docs/00-sessions.md](docs/00-sessions.md) for the progress log,
+[docs/07-next-session.md](docs/07-next-session.md) for what is next, and
+[docs/04-curiosities.md](docs/04-curiosities.md) if you just want the
+interesting bits.
+
+## Documentation
+
+    00-sessions.md            progress log
+    01-disc-layout.md         what is on the DVD
+    02-container-formats.md   every file format, with verified layouts
+    03-engine-architecture.md the engine's classes, recovered from RTTI
+    04-curiosities.md         what the disc reveals about its making
+    05-open-questions.md      what is still unknown
+    06-iab-video.md           how the movie codec was identified
+    07-next-session.md        the plan
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). This covers the documentation and tools in this
+repository only. It says nothing about RPG Maker 3 itself, which remains the
+property of its rights holders.
