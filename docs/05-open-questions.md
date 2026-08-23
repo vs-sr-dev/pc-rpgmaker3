@@ -2,15 +2,24 @@
 
 Ordered by priority for the port.
 
-## 1. Project format (`sample/game/*`) — highest priority
+## 1. Project format — the record walk and the checksum
 
-This is the heart of the engine: maps, events, database, cutscenes. Partial
-header in `docs/02-container-formats.md`. We need to map the section table
-at offset `0x10` and correlate it with the `CEdPro*` classes and the `.smp`
-record sizes.
+The format is largely mapped in `08-project-format.md`: 16-byte wrapper, a
+global header with three per-type tables, then records laid end to end from
+0xB30 with `id`, `type` and a Shift-JIS name.
 
-Starting point: the three samples share the same size but differ in content
-— diffing them isolates the regions actually in use.
+Two things still block writing a file the engine will load:
+
+* **The checksum at `+0x04`.** Not additive, and not CRC-32 under any of the
+  usual polynomial / init / reflection / range combinations tried.
+* **The record walk desynchronises on the disc samples** after a few
+  records, while it lands exactly on `bytes_used` for memory-card saves. At
+  least one record kind must be variable-length or interleaved with data the
+  walk does not account for.
+
+Also unmapped: table B at `+0x64`, the fixed fields between `+0xA4` and
+`+0x200`, and the 20-byte step between an empty project's `bytes_used`
+(0xB1C) and the first record (0xB30).
 
 ## 2. `.bin` geometry and VU1 microprograms
 
@@ -53,9 +62,10 @@ that the values are visible in the game's own editor.
 ## 6. Checksums
 
 The field at `+0x18` of the texture block and the one at `+0x04` of the
-project files look like checksums. The algorithm needs identifying —
-required in order to write files the original engine will accept, which is
-useful for validating the port against an emulator.
+project files look like checksums. Neither algorithm is identified; for the
+project field see question 1, where the search so far is recorded. Required
+in order to write files the original engine will accept, which is how we
+validate the port against an emulator.
 
 ## 7. Identifying the 16 VU1 microprograms
 

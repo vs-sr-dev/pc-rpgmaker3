@@ -46,6 +46,14 @@ python tools/iab_audio.py out/logo/logo.iab -o logo.wav
 
 # ASCII strings with offsets
 python tools/pstrings.py E:/SLUS_211.78 -n 6 --offsets
+
+# PS2 memory card -> saved projects (PCSX2 .ps2 images included)
+python tools/ps2mc.py card.ps2 --list
+python tools/ps2mc.py card.ps2 --extract saves/
+
+# project files: header, record walk, text, byte diff
+python tools/rpgproj.py saves/BASLUS-21178a/BASLUS-21178a --header --walk
+python tools/rpgproj.py a/BASLUS-21178a b/BASLUS-21178a --diff
 ```
 
 ffmpeg is only needed for the movie pipeline; the Python tools have no
@@ -53,7 +61,7 @@ dependencies at all.
 
 ## Status
 
-Sessions 1-2 — disc, formats and the movie codec. See
+Sessions 1-3 — disc, formats, the movie codec, and the project format. See
 [docs/00-sessions.md](docs/00-sessions.md) for the progress log,
 [docs/07-next-session.md](docs/07-next-session.md) for what is next, and
 [docs/04-curiosities.md](docs/04-curiosities.md) if you just want the
@@ -69,6 +77,7 @@ interesting bits.
     05-open-questions.md      what is still unknown
     06-iab-video.md           how the movie codec was identified
     07-next-session.md        the plan
+    08-project-format.md      the project file: header, schema and records
 
 ## Licence
 

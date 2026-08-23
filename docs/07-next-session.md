@@ -1,73 +1,69 @@
-# TODO — session 3
+# TODO — session 4
 
-Ordered by value to the port. Item 1 is the session's main goal; the rest are
-there so that a blocked morning has somewhere useful to go.
+Session 3 opened the project format with a pair of differential memory-card
+saves. The same lever will finish it, and the captures needed are listed
+first because they are cheap to make and unblock everything else.
 
-## 1. The project format (`sample/game/sample1..3`) — main goal
+## 0. Memory-card captures to make (a few minutes each)
 
-This is the engine's central data structure: maps, events, database,
-cutscenes — everything the user creates. Nothing else can be reimplemented
-until it is understood.
+Each one is: make the change in the editor, save, copy the `.ps2` file out.
+Keep them one change apart — the value of the method is that exactly one
+thing moves.
 
-**What we already know.** Three sample projects, all exactly 1,994,768 bytes.
-A first diff shows **56 % of the bytes differ** between them and the varying
-regions cover the whole arena, so there is no large constant scaffolding to
-skip past. The 32-byte header decodes promisingly:
+Building on `empty.ps2` / `newclass.ps2`:
 
-    +0x00  u32   1,006,148 / 427,496 / 231,940   -- differs per sample
-    +0x04  u32   varies wildly                   -- checksum
-    +0x08  u32   0x001E7000 = 1,994,752          -- constant: arena capacity
-    +0x0C  u32   0x00A02A00 / 0x00A7B900 / 0x00A70480
-    +0x10  u32   0x00010000                      -- constant
-    +0x14  u32   20                              -- constant
-    +0x18  u32   579 / 285 / 503                 -- a count of something
-    +0x1C  u32   0
+1. **`twoclasses.ps2`** — add a *second* class, everything default. Settles
+   the last ambiguity in the allocator: whether records stay contiguous
+   (expected stride 4,172) or whether the 16-byte step seen between the
+   header and the first record repeats for every allocation.
+2. **`renamed.ps2`** — take `newclass.ps2` and only rename the class, to
+   something long and distinctive (`ZZZZTESTZZZZ`). Confirms the name field
+   and its capacity, and — with `bytes_used` unchanged — gives the checksum a
+   clean, tiny input change to work with.
+3. **`onestat.ps2`** — from `newclass.ps2`, change one numeric field on the
+   class screen (one attack value, by a known amount, say from 10 to 11).
+   Pins that field's offset and its width outright.
+4. **`onetech.ps2`** — from `newclass.ps2`, add one technique to the class.
+   Should light up the first of the fifteen 240-byte entries at `+0x230` and
+   confirm what that array is.
+5. **`onechar.ps2`** — from `empty.ps2`, add one character instead of a
+   class. Identifies which type index characters use, and gives a second
+   record type to compare layouts against.
 
-`+0x00` is almost certainly **bytes used**: it is always below the constant
-capacity at `+0x08`, and it tracks how elaborate each sample game is. That
-would make it the number behind the editor's "Memory" gauge.
+If only one of these is possible, make it number 1.
 
-`+0x0C` is too large to be a file offset but falls inside the PS2's 32 MB
-address space, so it may be a saved pointer.
+## 1. Finish the record walk
 
-**Plan.**
+`tools/rpgproj.py --walk` lands exactly on `bytes_used` for memory-card
+saves and desynchronises a few records into the disc samples. Something is
+variable-length. Two ways in:
 
-1. Map the section table that starts around `+0x10`: the `u16` pairs there
-   look like (count, stride). Cross-check every stride against the `.smp`
-   record sizes, which are the `sizeof` of the `CEdPro*` classes:
-   208 (`ed_human`, `ed_i_w`), 216, 220, 240, 272, 988, 3736, 3784.
-   A stride that matches one of those identifies its section outright.
-2. Use the text as anchors. Character names, item names and descriptions are
-   plain ASCII inside the project; locating them pins the record boundaries,
-   and the `.smp` presets give us the expected content to match against.
-3. Work out how the three samples' `+0x18` counts (579 / 285 / 503) relate to
-   what is visible in-game.
+* the samples' failure points are known and small — dump the bytes around
+  each and look for a length field;
+* capture 5 above gives a second record type built to order, which is a much
+  cleaner place to see how a record's tail is terminated.
 
-**What would help most: differential captures from PCSX2.** The fastest way
-to map fields is to change one thing at a time and diff. Concretely, in the
-emulator: create a minimal project, save to the memory card, then repeatedly
-change a single value (rename a character, bump one stat, add one event
-command) and save to a fresh slot. A handful of such pairs will identify more
-fields in an hour than static analysis will in a day. Memory-card saves
-should share the layout with `sample/game/*`; confirming that is itself the
-first useful result.
+Once the walk is complete on `sample1`, the whole database of a real game
+becomes readable, and the per-type record layouts can be mapped against the
+`.smp` presets, whose contents are already known.
 
-## 2. Close the `.iab` frame header
+## 2. The checksum at `+0x04`
 
-The codec is solved, but the short per-frame header before the macroblock
-stream is not: 17 bits in `logo.iab`, 13 in `rpg_640_448.iab`, and the
-`eb_ci` videos decode cleanly at no offset yet.
+Ruled out so far: word/byte/halfword sums, XOR, Adler-32, and CRC-32 with
+reflected and non-reflected polynomials (0x04C11DB7, 0xEDB88320, 0x1EDC6F41,
+0x82F63B78) over ranges starting at 0x00/0x04/0x08/0x20 and ending at
+`bytes_used`, at the aligned `bytes_used`, and at end of file.
 
-Implement the MPEG-2 **B-15** coefficient table so the first macroblock's
-exact bit length can be measured rather than guessed. Validate it by encoding
-test images with `ffmpeg -intra_vlc 1` and checking the parser lands exactly
-on each slice's start code. The port needs this decoder anyway, so the work
-is not throwaway.
+Next: find it in the executable instead of guessing. The routine will be
+called right before the memory-card write, so start from the sceMcWrite
+call sites in `SLUS_211.78` and walk back. Capture 2 above gives a
+minimal-difference pair to test any candidate against.
 
 ## 3. `.bin` geometry — start the VIF/GIF disassembler
 
-The `.bin` files are pre-built DMA/VIF1 chains, not meshes; `UNPACK V4_32`
-codes are already recognisable. Two halves:
+Unchanged from session 3, and now the largest untouched piece of the engine.
+The `.bin` files are pre-built DMA/VIF1 chains; `UNPACK V4_32` codes are
+already recognisable. Two halves:
 
 * a VIF/GIF packet disassembler, to see what data is being uploaded;
 * a first pass over `.vutext` and the 16 `.DVP.overlay.*` microprograms, to
@@ -79,13 +75,17 @@ its 128x128 texture) rather than general coverage.
 ## 4. Smaller, self-contained wins
 
 * **`.fnt`** — the header is understood; write the glyph decoder and dump
-  `ascii16` and `jis16` to PNG sheets. Small and immediately verifiable.
+  `ascii16` and `jis16` to PNG sheets. Small and immediately verifiable, and
+  `jis16` is now interesting in its own right (curiosity 16).
 * **`.hd`/`.bd`** — standard SCE sound banks; a VAG extractor would give us
   the sound effects and confirm the MIDI + sample pipeline.
-* **Checksums** — identify the algorithm behind the project header's `+0x04`
-  and the texture block's `+0x18`. Needed before we can write files the
-  original engine will accept, which is how we validate the port against an
-  emulator.
+* **The editor's system save** (`BASLUS-21178system`, 33,792 bytes) uses the
+  same 16-byte wrapper but is full rather than bump-allocated, and 485
+  separate regions of it changed between two saves a minute apart. Worth an
+  hour to find out what the editor keeps there.
+* **`info.dat`** — mostly mapped: the same wrapper, a title, and PS2-style
+  binary timestamps at `+0x7C` and `+0x84`. The 24 bytes at `+0x64` change
+  completely between saves and start with a float in the 0..1 range.
 
 ## 5. Loose ends worth a few minutes
 
@@ -97,3 +97,11 @@ its 128x128 texture) rather than general coverage.
 * The `net/` configs and the networking modules suggest online features. Is
   any of it reachable in the shipped USA build, or is it all dormant like the
   Japanese logo movie?
+* Can the USA editor actually load `sample2` and `sample3`, the two that were
+  never translated (curiosity 16)?
+
+## 6. Carried over
+
+The `.iab` frame header work that stood at item 2 last session is untouched
+and still open — see `05-open-questions.md` question 3. It sits below the
+project format now, because the project format is what the port needs first.

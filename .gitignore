@@ -1,4 +1,4 @@
-# BYOA: nessun contenuto del disco originale entra nel repo.
+# BYOA: no content from the original disc enters the repo.
 build/
 *.iso
 *.dat
@@ -15,3 +15,8 @@ build/
 SLUS_*
 __pycache__/
 *.pyc
+
+# Memory card images: user saves, but they also carry the game's own icon
+# and other on-disc assets.
+*.ps2
+PS2saves/

@@ -65,3 +65,49 @@ length varies per file. See `05-open-questions.md`.
 
 Next step: the project format (`sample/game/*`), which is the core of the
 engine.
+
+## Session 3 — the project format, opened with a memory card
+
+Goal: the project format (`sample/game/*`), the engine's central data
+structure.
+
+The lever was two PCSX2 memory cards captured a minute apart: one holding a
+project created and saved with nothing in it, the other the same project
+after adding a single Sword & Shield class with every field left at its
+default. Diffing those two isolates one object exactly.
+
+Results:
+
+* **`tools/ps2mc.py`** reads PS2 memory card images (PCSX2's 528-byte pages
+  included), walks the FAT and extracts the save directories.
+* **Memory-card saves are the project format**: `BASLUS-21178a` is
+  1,994,768 bytes, the same size and the same header tables as
+  `sample/game/sample1`. Every experiment we can run in the emulator now
+  applies directly to the disc samples.
+* **The 16-byte wrapper is generic.** `capacity` is always the file size
+  minus 16, on projects, on `info.dat`, on the in-game save slots and on the
+  editor's system save alike.
+* **Everything past `bytes_used` is uninitialised memory.** A new project
+  uses 2,844 bytes of its 1.99 MB yet the file is non-zero nearly to the
+  end. The 56 % byte difference between the three samples that session 2
+  measured was mostly leftover heap. Two saves from the same session carry
+  identical garbage, which is exactly what makes the differential method
+  work.
+* **The schema is three tables of twenty `u16`.** Table A at `+0x24` is the
+  `sizeof` of each of the twenty record types; table C at `+0x7EA` is the
+  next free ID per type. Adding one class incremented `C[4]` and appended
+  `A[4]` = 4,172 bytes.
+* **Records are laid end to end from 0xB30**, `id` and `type` in the first
+  two words, name at `+0x4C` in Shift-JIS. Confirmed on the controlled save
+  and cross-checked on the samples, where name strings chain at exactly the
+  stride table A predicts for twelve of the twenty types.
+* **A class record dissected**: fifteen empty 240-byte entries at `+0x230`,
+  almost certainly its technique table.
+* Full write-up in `08-project-format.md`.
+* Two more curiosities (16, 17): two of the three sample games shipped in
+  the USA release are still entirely in Japanese, and one of them is a
+  developer's layout test.
+
+Still open: the checksum at `+0x04` resisted every additive scheme and every
+usual CRC-32 variant, and the record walk desynchronises partway through the
+disc samples, so at least one record kind is variable-length.

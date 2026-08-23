@@ -202,3 +202,29 @@ Two more slips are pure transliteration accidents:
 
 And one placeholder never got renamed: the field terrain sets are
 `field/hokaidou1..3.p64` — **Hokkaido**.
+
+## 16. Two of the three sample games were never translated
+
+The USA release ships three sample projects. `sample1` is
+**"Dear Brave Heart"**, fully localised — 579 ASCII strings, place names
+like *Elgiza Isle*, and Enterbrain's own name in Latin letters.
+
+The other two never were. `sample2` is 太陽の昇る街 ("the town where the sun
+rises"), 1,271 Japanese strings against 22 ASCII ones — and the 22 are false
+positives from binary data, not text. Its cast is intact: アイン,
+本編の主人公 ("the protagonist of the main story"). Character bios read in
+full, e.g. アーヴィン, 「青い稲妻」「神速の弓手」の二つ名を持つ、若き射手 —
+"a young archer who goes by two names, Blue Lightning and the Godspeed
+Bowman".
+
+Whether the editor lets a USA player load them is untested, but the data is
+there, complete, and in a font the console can render — the Japanese glyph
+sheet `jis16.fnt` shipped too.
+
+## 17. One of the samples is a developer's test file
+
+`sample3` is titled タウンレイウトサンプル — "town layout sample". It has 85
+objects of one type and 32 of another where the playable samples have a
+handful, and no story text to speak of. It is a scratch file for checking
+that town layout works, left in the retail directory next to the two real
+demos.

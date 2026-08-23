@@ -126,22 +126,29 @@ record size is constant per category:
 These sizes are effectively the `sizeof` of the editor's `CEdPro*` classes
 (see `docs/03-engine-architecture.md`).
 
-## sample/game/sample{1,2,3} — complete projects 🔍
+## sample/game/sample{1,2,3}, memory-card saves — projects ✅
 
-Three sample projects, **all exactly 1,994,768 bytes**. The fixed size
-suggests a constant-capacity memory arena, which is what the "Memory"
-gauge in the editor UI measures.
+Three sample projects on the disc, **all exactly 1,994,768 bytes**, and a
+memory-card save is the very same format at the very same size. The fixed
+size is a constant-capacity arena, which is what the "Memory" gauge in the
+editor measures.
 
-Preliminary header:
+    +0x00 u32  bytes_used   end of the last record
+    +0x04 u32  checksum     algorithm not identified 🔍
+    +0x08 u32  capacity     always file size - 16
+    +0x0C u32  0 on memory-card saves, a large value in the disc samples 🔍
+    +0x10 ...  arena: global header, then records from 0xB30
 
-    +0x00 u32  0x000F5C44
-    +0x04 u32  checksum? (0xACF46581)
-    +0x08 u32  0x001E7000 = filesize - 16
-    +0x0C u32  0x00A02A00
-    +0x10 ...  section table: u16 (count, stride) pairs 🔍
+The global header carries the project title at +0x1AC and three tables of
+twenty u16: record size per type at +0x24, an unidentified table at +0x64,
+and the next free ID per type at +0x7EA. Records follow end to end, each
+`size[type]` bytes, with `id` and `type` in their first two words and a
+Shift-JIS name at +0x4C.
 
-This is the engine's central data format and the priority for the next
-session.
+Everything past `bytes_used` is uninitialised PS2 memory, not project data.
+
+Full write-up, including how it was worked out from a pair of differential
+memory-card saves, in `08-project-format.md`.
 
 ## .bin — VU1/GIF display lists 🔍
 
