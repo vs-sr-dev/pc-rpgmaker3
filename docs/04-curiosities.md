@@ -91,10 +91,12 @@ Every texture keeps the source path from the artist's machine:
     D:\home\iwashita\ps2\system_font\N_FONT12.mpic
     C:\Documents and Settings\<kanji name>\<Desktop>\mainmenu_logo.mpic
     C:\Documents and Settings\m-akutsu\<Desktop>\check\a00\image\a00.mpic
+    C:\Documents and Settings\Administrator\<Desktop>\suutiin.mpic
 
 At least four people are visible (`saito`, `iwashita`, `m-akutsu` and a
-fourth name written in kanji), and some shipping textures were exported
-**straight from someone's Desktop**. `editer_common` is another recurring
+fourth name written in kanji), several shipping textures were exported
+**straight from someone's Desktop**, and one came off an account literally
+named `Administrator`. `editer_common` is another recurring
 misspelling (for `editor`).
 
 Also worth noting: `chihuahua.mpic` is the texture name for the first human
@@ -143,19 +145,33 @@ credits.
 ## 12. `tukuru.mpic` is the Agetec logo
 
 The file named after the Japanese brand actually contains the American
-publisher's logo. Its embedded source path gives it away:
+publisher's logo. **`tukuru` is ツクール** — the Japanese name of the series
+is RPGツクール (*RPG Tsukūru*), a pun on 作る *tsukuru* ("to make") and
+ツール *tsūru* ("tool"). So this slot originally held the Japanese series
+ident, the same one still animated in `logo/logo.iab`.
+
+Its embedded source path gives the substitution away:
 
     C:\Documents and Settings\<kanji name>\<Desktop>\ageteclogoforscreeneps.mpic
 
-The localisation reused the existing asset slot and never renamed it. The
-decode matches a PCSX2 frame capture to within 0.9 per colour channel.
+`eb.mpic` and `runtime.mpic` both keep source files of their own name; only
+this one points at a completely different file. The localisation dropped the
+Agetec logo into the existing slot and never renamed it. Our decode matches a
+PCSX2 frame capture to within 0.9 per colour channel.
 
 ## 13. The 2D character art is filed by illustrator
 
-`img_2d/` has eight subdirectories of 88 images each, named `nouguchi`,
-`nihei`, `nagasaku1`, `nagasaku2`, `kitazawa`, `iwasaki`, `hanaka`. They are
-**people**: the staff roll video names 納口龍司 and 北沢直樹 under
-「3Dキャラクターデザイン」. Each artist's portrait set got its own folder,
+`img_2d/` has seven subdirectories of 88 images each, and the file prefixes
+inside them settle what the names are:
+
+    nouguchi/nog_NN.mpic     nihei/ni_NN.mpic
+    kitazawa/kit_NN.mpic     hanaka/hana_NN.mpic
+    iwasaki/iwa_NN.mpic      nagasaku1/na1_NN.mpic
+                             nagasaku2/na2_NN.mpic
+
+They are **people**: the staff roll video names 納口龍司 (Nouguchi) and
+北沢直樹 (Kitazawa) under 「3Dキャラクターデザイン」. Each illustrator's
+portrait set got its own folder, keyed by an abbreviation of their surname,
 and that structure shipped on the disc.
 
 ## 14. Runtime, Inc. — "Entertainment & Architecture"
@@ -163,3 +179,26 @@ and that structure shipped on the disc.
 The developer's boot logo carries that tagline. The studio behind a 3D RPG
 construction kit also did architectural visualisation — which, given that
 the game is essentially a real-time level editor, is not a coincidence.
+
+## 15. The asset names are romaji typed on a Japanese IME
+
+The naming is a running mix of English and romanised Japanese, and the
+romanisation is **kunrei-style** — つ as `tu`, ち as `ti` — which is how you
+type Japanese into an IME, not how you would transliterate it for readers:
+
+    tukuru            つくる  (ツクール, the series name)
+    battle/suutiin    すうち  (数値, "numeric value") -- and the file really
+                              does hold the battle digits, "MAX" and the bars
+    weapon/kakutou    格闘    hand-to-hand, as a weapon class
+    weapon/naginata   なぎなた
+    pre_ground/pre_jimen.bin  地面 = "ground": the folder is the English of
+                              its own file name
+    weapon/ya00.p64   矢      "arrow", loose in the weapon folder
+
+Two more slips are pure transliteration accidents:
+
+    weapon/brade/     ブレード "blade", with the classic r/l swap
+    room/palas00      パラス   "palace"
+
+And one placeholder never got renamed: the field terrain sets are
+`field/hokaidou1..3.p64` — **Hokkaido**.

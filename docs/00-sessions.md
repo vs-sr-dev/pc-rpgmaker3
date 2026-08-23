@@ -55,6 +55,11 @@ Results:
 * Four more curiosities (11-14), including a fully intact Japanese series
   ident that the USA release never plays.
 
+Follow-up on the naming: `tukuru` is ツクール, the Japanese name of the
+series, which makes `tukuru.mpic` holding the Agetec logo a straight
+substitution into the Japanese ident's slot. Chasing that turned up a whole
+seam of kunrei-style romaji in the asset names — curiosity 15.
+
 Still open: the short per-frame header before the macroblock stream, whose
 length varies per file. See `05-open-questions.md`.
 
