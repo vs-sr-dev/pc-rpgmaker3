@@ -14,9 +14,9 @@ handful of bytes that actually moved.
 Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
 attack 1):
 
-`skillcost.ps2` is done — it pinned target, effect points and cost in one
-13-byte run, and the skill entry is now understood except for three words.
-What remains:
+`skillcost.ps2` and `skillanim.ps2` are done. Between them the special-skill
+entry is finished: every field that is ever non-zero in the demo now has a
+name, and the two pick-lists resolve against the executable. What remains:
 
 1. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
@@ -31,10 +31,10 @@ What remains:
 4. **`twochar.ps2`** — a second character, to see how a Human's variable part
    grows with dialogue.
 
-A fifth capture would finish the skill entry outright: **`skillanim.ps2`** —
-on `HOLYSWORD`, change the animation and the sound effect, and nothing else.
-`+0x0C8` (0..25) and `+0x0D0` (0..7) are the only two live fields left in the
-block, and their ranges suggest exactly that pair.
+One small capture would tidy the last loose end in the skill entry:
+**`healfx.ps2`** — give a *recovery* skill a visual effect, say *Heal 5*. If
+the field lands on 5 the sub-list reading is settled; if it lands on 30 the
+index is absolute after all and the demo's heals mean something else.
 
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.

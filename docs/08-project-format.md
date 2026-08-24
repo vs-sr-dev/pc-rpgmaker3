@@ -294,12 +294,12 @@ last entry running eight bytes short of a full one.
     +0x000  u32       1 if the entry exists, -1 if free
     +0x004  char[22]  name, Shift-JIS, NUL-terminated
     +0x01A  char      description, NUL-terminated, "\n" for line breaks
-    +0x0BC  u32       0 or 1
-    +0x0C0  u32       0..3
+    +0x0BC  u32       skill type: 0 uses HP, 1 is magic and uses MP
+    +0x0C0  u32       effect category, 3 = recovery
     +0x0C4  u32       always 0
-    +0x0C8  u32       0..25
+    +0x0C8  u32       visual effect, an index into the editor's pick-list
     +0x0CC  u32       always 0
-    +0x0D0  u32       0..7
+    +0x0D0  u32       animation, 0..7
     +0x0D4  u32       always 0
     +0x0D8  u32       target: 0 one, 1 all
     +0x0DC  u32       effect points
@@ -376,14 +376,84 @@ what it says:
 Every single-target entry is a melee strike and every group entry is a spell,
 a beam or a party heal. No capture was needed to believe it.
 
-The rest of the numeric block stays unconfirmed, and it is smaller than it
-looks: `+0x0C4`, `+0x0CC` and `+0x0D4` are zero on all sixteen named skills in
-the demo, so only four fields carry anything. `+0x0C0` is 3 on the three
-healing skills and 0 everywhere else, which reads as a recovery flag or an
-element id. `+0x0BC` is 1 on those same three *and* on *Infernal Flames* —
-Session 4 called it healing-only, which the wider read disproves; magic
-against physical fits the four better. `+0x0C8` (0..25) and `+0x0D0` (0..7)
-look like animation and sound ids, on nothing more than their ranges.
+### Animation and visual effect
+
+A fourth capture took the last two live fields. The editor splits a skill's
+presentation in two — **Animation**, what the character does, and **Visual
+Effect**, what the spell draws — and the sound is baked into each, so there is
+no separate sound field to find. `skillanim.ps2` set `HOLYSWORD` to animation
+*Special Attack* and effect *Cross (Red)*, and again the whole diff outside
+the checksum is one contiguous run:
+
+    +0x0C8    0 -> 17    visual effect
+    +0x0D0    0 ->  6    animation
+
+Both pick-lists live in the **executable**, not in the project, and both
+resolve exactly.
+
+`Animation` is a plain array of eight 16-byte names at file offset `0x3EDE20`,
+introduced by the label "Animation" in the record before it:
+
+    0 Magic/Item 1   2 Attack 1   4 Attack 3   6 Special Attack
+    1 Magic/Item 2   3 Attack 2   5 Attack 4   7 Attack 5
+
+*Special Attack* is index 6, which is what the editor wrote. The 0..7 range
+Session 4 measured across the demo is not a sample — it is the whole domain.
+
+`Visual Effect` is harder, and the difficulty is itself the finding. At
+`0x3A80D8` sit 64 records of `{ char name[22]; i16 id, id2, se; }`, *None*
+first, then *Fireball (Red)* through *Ninjutsu 4*. Counted straight, *Cross
+(Red)* is row 19 — but the field holds 17. Three rows carry `id == -3`
+instead of an effect number, and they are precisely the three still bearing
+Japanese names: ポイズンボール(青), ポイズンボール(黄), 強化８. Drop those and
+*Cross (Red)* lands on 17 exactly. **The stored value is a position in the
+list the editor displays, not a row of the table**, so three cut effects
+renumber everything below them. (Curiosity 21.)
+
+One qualification. Recovery skills index a sub-list of their own: *Healing
+Plus* and *Healing Wind* hold 1 and ヒール holds 10, which as whole-list
+positions would be *Fireball (Red)* and *Thunder*, and as positions in the
+*Heal 1*..*Heal 10* block are *Heal 1* and *Heal 10*. So `+0x0C8` is relative
+to whatever sub-list `+0x0C0` selects; the capture only exercised category 0,
+whose sub-list happens to be the head of the table, so it cannot separate the
+two readings on its own.
+
+Read back through both lists, the demo decodes into something obviously
+right — `tools/rpgproj.py --skills --elf SLUS_211.78`:
+
+    Thunder Slash     Thunder            Attack 3
+    Meteo Most Fowl   Meteor             Special Attack
+    Butler Beam       Demon (Beams)      Magic/Item 2
+    Megid Arc         Cross (Blue)       Attack 4
+    Volcano Rave      Fireball (Flames)  Special Attack
+    Healing Wind      Heal 1             Magic/Item 2
+    ヒール              Heal 10            Magic/Item 1
+
+Every sword technique draws an *Attack* animation and every spell a
+*Magic/Item* one, and five of the effect names restate the skill's own name.
+Nothing in the capture forced that agreement. The one entry that still reads
+oddly is *Infernal Flames*, a fire spell holding 25 — *Beams* — which is the
+best argument that magic, too, may index a sub-list we have not separated.
+
+### What the rest of the block is
+
+`+0x0C4`, `+0x0CC` and `+0x0D4` are zero on all sixteen named skills in the
+demo, so the block has only four live fields and both of the unresolved ones
+are now named on strong evidence rather than range alone.
+
+`+0x0BC` is the editor's **Skill Type**, which the executable spells out in
+two strings and no more: "Skills use HP.\nDamage = effect points" and
+"Magic uses MP.\nDamage = effect points + magic attack power". Two
+options, and the field is 0 or 1. It is 1 on the three heals and on
+*Infernal Flames* — the four spells — and 0 on every sword, bow and joke
+technique. Session 4 read it
+as healing-only, which the wider list disproves. Those same strings name
+`+0x0DC`: *effect points* is the editor's own term for it.
+
+`+0x0C0` is 3 on the three recovery skills and 0 on everything else, including
+the damaging spell, so it is a category rather than a school — and it is what
+picks the sub-list `+0x0C8` counts within. Its range runs to 3, so two
+categories exist that the demo never uses.
 
 ## How the captures were used
 
@@ -397,7 +467,8 @@ Nine memory-card projects, each one change apart:
     onemap      50,976            3 records  (+39,748: a field and its map)
     onetech     50,976            3 records  (one skill, inside the record)
     twotech     50,976            3 records  (a second skill and one effect)
-    skillcost   50,976            3 records  (cost, points and target on one skill)
+    skillcost   50,976            3 records  (cost, points, target on one skill)
+    skillanim   50,976            3 records  (animation and visual effect)
 
 The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
 settles the allocator: the overhead repeats on every allocation and records
@@ -412,9 +483,8 @@ single byte, is what cracked it.
   of a record's variable part, but why Room Data needs 68 bytes of it and
   System Data 2,232 is unclear.
 * **The 19,584 trailing bytes** of a Field's map data.
-* **Four words of a skill entry** — `+0x0BC`, `+0x0C0`, `+0x0C8` and
-  `+0x0D0` carry values we can only correlate; the block's other three words
-  are zero everywhere we can read.
+* **Which sub-list a skill's visual effect counts within**, and what the two
+  unused values of the category at `+0x0C0` mean.
 * **The fixed fields** between `+0xA4` and `+0x200` of the global header.
 * **Writing a project back to a memory card**, which needs the ECC in the
   spare area of each 528-byte page recomputed. The project file itself we can

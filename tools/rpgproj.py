@@ -5,6 +5,7 @@
     python tools/rpgproj.py project --walk
     python tools/rpgproj.py project --walk --type 4      # one record type only
     python tools/rpgproj.py project --maps --png out/
+    python tools/rpgproj.py project --skills --elf SLUS_211.78
     python tools/rpgproj.py project --strings
     python tools/rpgproj.py a b --diff
     python tools/rpgproj.py project --fix-checksum out   # rewrite with a valid CRC
@@ -29,6 +30,20 @@ TITLE = 0x1AC
 FIRST = 0xB30     # first record payload
 
 NAME_OFF = 0x4C   # name inside a record, Shift-JIS, NUL padded
+
+SKILL_BASE = 0x154   # first special-skill entry inside a Class record
+SKILL_STRIDE = 240
+SKILLS = 16
+
+# The two pick-lists a skill chooses from live in the executable, not in the
+# project.  ELF_VFX is 64 records of {char name[22]; i16 id, id2, se}; rows
+# whose id is -3 are disabled and the editor does not show them, so a stored
+# value counts only the rest, with "None" at 0.  ELF_ANIM is eight 16-byte
+# names.  Offsets are into SLUS_211.78 as a file.
+ELF_VFX = 0x3A80D8
+ELF_VFX_N = 64
+ELF_ANIM = 0x3EDE20
+ELF_ANIM_N = 8
 EXTRA_OFF = -4    # bytes of variable data beyond the type's own variable part
 
 # Names as the executable registers them, at 0x00100F48.  Two pairs share a
@@ -158,6 +173,54 @@ def show_walk(p, only=None):
     print("  %d records, objects field says %d" % (n, p.objects - 1))
 
 
+def elf_lists(path):
+    """Return (visual effects, animations) as the editor lists them."""
+    d = open(path, "rb").read()
+    vfx = []
+    for i in range(ELF_VFX_N):
+        rec = d[ELF_VFX + i * 28:ELF_VFX + i * 28 + 28]
+        ident, = struct.unpack_from("<h", rec, 22)
+        if ident != -3:                     # -3 is a row the editor hides
+            vfx.append(decode(rec[:22].split(b"\0")[0]))
+    anim = [decode(d[ELF_ANIM + i * 16:ELF_ANIM + i * 16 + 16].split(b"\0")[0])
+            for i in range(ELF_ANIM_N)]
+    return vfx, anim
+
+
+def show_skills(p, elf=None):
+    """List every class's special skills, with the fields sessions 4-5 pinned."""
+    vfx, anim = elf_lists(elf) if elf else (None, None)
+    # A recovery skill picks from the Heal block alone, so its stored index is
+    # relative to that sub-list rather than to the whole pick-list.
+    heal = ["None"] + vfx[26:36] if vfx else None
+    for off, ident, kind, extra in p.walk():
+        if kind != 4:
+            continue
+        rows = []
+        for i in range(SKILLS):
+            e = off + SKILL_BASE + SKILL_STRIDE * i
+            if struct.unpack_from("<i", p.data, e)[0] != 1:
+                continue
+            name = decode(p.data[e + 4:e + 4 + 22].split(b"\0")[0])
+            if not name:
+                continue
+            ty, cat, _, ve, _, an, _, tgt, pts, eff, cost = struct.unpack_from(
+                "<11i", p.data, e + 0xBC)
+            if vfx:
+                lst = heal if cat == 3 else vfx
+                ve = lst[ve] if ve < len(lst) else "?%d" % ve
+                an = anim[an] if an < len(anim) else "?%d" % an
+            rows.append((name, "magic" if ty else "skill", cat,
+                         "all" if tgt else "one", pts, eff, cost, ve, an))
+        if not rows:
+            continue
+        print("  %s" % p.name_at(off))
+        for r in rows:
+            print("    %-18s %-5s cat %d  %-3s  %3d pts  effect %-3d  cost %-3d"
+                  "  %-17s %s"
+                  % (r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]))
+
+
 def write_png(path, w, h, rgb):
     raw = b"".join(b"\x00" + rgb[y * w * 3:(y + 1) * w * 3] for y in range(h))
 
@@ -225,6 +288,10 @@ def main():
     ap.add_argument("--strings", action="store_true")
     ap.add_argument("--maps", action="store_true", help="list the map records")
     ap.add_argument("--png", metavar="DIR", help="with --maps, write PNGs there")
+    ap.add_argument("--skills", action="store_true",
+                    help="list every class's special skills")
+    ap.add_argument("--elf", metavar="SLUS_211.78",
+                    help="with --skills, name the effects and animations")
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--fix-checksum", metavar="OUT",
                     help="write a copy with the CRC-32 recomputed")
@@ -249,10 +316,13 @@ def main():
         p = Project(blob)
         if len(blobs) > 1:
             print("== %s" % f)
-        if args.header or not (args.walk or args.strings or args.maps or args.png):
+        if args.header or not (args.walk or args.strings or args.maps
+                               or args.png or args.skills):
             show_header(p)
         if args.walk:
             show_walk(p, args.type)
+        if args.skills:
+            show_skills(p, args.elf)
         if args.maps or args.png:
             show_maps(p, args.png)
         if args.strings:

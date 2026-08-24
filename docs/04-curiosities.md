@@ -289,3 +289,30 @@ Flames* and *Meteo Most Fowl* at fifteen characters, come out clean.
 
 It is harmless — the engine stops at the NUL — and it means a fragment of the
 Japanese original ships inside every localised project on the disc.
+
+## 21. Three battle effects were cut by making them unselectable
+
+The executable holds the editor's visual-effect pick-list as 64 records of
+`{ char name[22]; i16 id; i16 id2; i16 se; }`, from *Fireball (Red)* through
+*Ninjutsu 4*. Three of the 64 never appear in the editor, because their `id`
+is -3 instead of a real effect number:
+
+    row  8   ポイズンボール(青)     Poison Ball (Blue)
+    row  9   ポイズンボール(黄)     Poison Ball (Yellow)
+    row 45   強化８                Enhance 8
+
+They are the only three rows in the whole list still carrying a Japanese
+name. Everything around them was translated: row 7 is *Poison Ball*, rows 36
+to 44 are *Enhance 1* through *Enhance 7*. So these are not effects the
+translators forgot — they are effects that were **already dead when the
+translators got the file**, and so had no English to write.
+
+The cut is done by hand and it is careless. Rather than delete the rows, the
+developers set the id to -3 and left the names in place, which is why the
+Japanese survives; and *Enhance 8* betrays that the enhance family was meant
+to have eight members, not seven.
+
+The exclusion is not cosmetic. A skill stores its effect as a position in the
+list **after** the -3 rows are dropped, not as a row number — which is how a
+capture that selected *Cross (Red)*, row 19 of 64, wrote 17. Three deleted
+rows silently renumber every effect below them.

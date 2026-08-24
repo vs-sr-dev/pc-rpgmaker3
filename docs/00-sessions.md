@@ -204,3 +204,32 @@ and the target from *1 target* to *all enemies*.
   `+0x0C4`, `+0x0CC`, `+0x0D4` — are zero on all sixteen named skills in the
   demo, so what is still unexplained in a 240-byte entry is four fields, not
   seven.
+
+A second capture the same session finished the entry. `skillanim.ps2` set
+`HOLYSWORD`'s animation to *Special Attack* and its visual effect to *Cross
+(Red)* — the editor splits presentation into those two, with the sound baked
+into each — and again the diff outside the checksum is one contiguous run:
+`+0x0D0` to 6, `+0x0C8` to 17.
+
+* **Both pick-lists are in the executable**, and both resolve. Animation is
+  eight 16-byte names at `0x3EDE20`, *Special Attack* sitting at index 6 —
+  so the 0..7 range measured across the demo is the whole domain, not a
+  sample. Visual effect is 64 records of `{ char name[22]; i16 id, id2, se }`
+  at `0x3A80D8`.
+* **The effect index counts the list the editor shows, not the table.**
+  *Cross (Red)* is row 19 of 64, but the field holds 17: three rows carry
+  `id == -3` and are hidden, and dropping them lands it exactly. Recovery
+  skills index a sub-list of their own, so the value is relative to whatever
+  `+0x0C0` selects.
+* **`+0x0BC` is Skill Type**, which the executable spells out in two strings
+  and no more — skills use HP, magic uses MP. Those same strings give
+  `+0x0DC` its name: *effect points*.
+* Decoded through both lists the demo reads true — *Thunder Slash* draws
+  Thunder, *Meteo Most Fowl* draws Meteor, *Butler Beam* draws Demon (Beams),
+  every sword technique uses an *Attack* animation and every spell a
+  *Magic/Item* one. `tools/rpgproj.py --skills --elf` prints it.
+* **Curiosity 21**: those three hidden rows are the only three in the list
+  still carrying Japanese names — two Poison Ball variants and *Enhance 8*.
+  They were cut before translation, by setting an id to -3 rather than
+  deleting the row, which is why the Japanese survives and why every effect
+  below them is silently renumbered.
