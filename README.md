@@ -53,15 +53,22 @@ python tools/ps2mc.py card.ps2 --extract saves/
 
 # project files: header, record walk, text, byte diff
 python tools/rpgproj.py saves/BASLUS-21178a/BASLUS-21178a --header --walk
+python tools/rpgproj.py sample1 --walk --type 4          # just the classes
+python tools/rpgproj.py sample1 --fix-checksum out.prj   # recompute the CRC-32
 python tools/rpgproj.py a/BASLUS-21178a b/BASLUS-21178a --diff
+
+# disassemble the executable by virtual address (needs capstone)
+python tools/mipsdis.py E:/SLUS_211.78 0x00100F48 --count 40
 ```
 
-ffmpeg is only needed for the movie pipeline; the Python tools have no
-dependencies at all.
+ffmpeg is only needed for the movie pipeline, and `mipsdis.py` needs
+`capstone`; every other tool has no dependencies at all.
 
 ## Status
 
-Sessions 1-3 — disc, formats, the movie codec, and the project format. See
+Sessions 1-4 — disc, formats, the movie codec, and the project format, which
+is now solved: the checksum verifies and every record of every project parses
+to the last byte. See
 [docs/00-sessions.md](docs/00-sessions.md) for the progress log,
 [docs/07-next-session.md](docs/07-next-session.md) for what is next, and
 [docs/04-curiosities.md](docs/04-curiosities.md) if you just want the

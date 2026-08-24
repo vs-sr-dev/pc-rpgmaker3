@@ -1,57 +1,87 @@
-"""Dump an RPG Maker 3 project file (sample/game/*, or BASLUS-21178a from a
-memory card save).
+#!/usr/bin/env python3
+"""Read an RPG Maker 3 project (sample/game/*, or BASLUS-21178a from a save).
 
     python tools/rpgproj.py project --header
     python tools/rpgproj.py project --walk
+    python tools/rpgproj.py project --walk --type 4      # one record type only
     python tools/rpgproj.py project --strings
-    python tools/rpgproj.py a b --diff        # two projects, byte level
+    python tools/rpgproj.py a b --diff
+    python tools/rpgproj.py project --fix-checksum out   # rewrite with a valid CRC
 
-Only the first `bytes_used` bytes of the arena are meaningful; everything
-after it is uninitialised PS2 memory that got written out with the rest of
-the buffer.
+File layout: a 16-byte wrapper (bytes_used, CRC-32, capacity, saved base) then
+the object arena.  Only the first `bytes_used` bytes of the arena are
+meaningful; what follows is uninitialised PS2 memory written out with the
+buffer, so it differs between two saves made seconds apart.
 """
 import argparse
 import re
 import struct
 import sys
+import zlib
 
-HDR = 16          # file header, before the arena
-TYPES = 20        # number of record types, also at header +0x14
-TBL_SIZE = 0x24   # sizeof table, file offset
-TBL_B = 0x64      # second per-type table, purpose unknown
-TBL_COUNT = 0x7EA  # per-type ID counter (next free ID, so objects = value - 1)
-TITLE = 0x1AC     # project title, Shift-JIS
-FIRST_RECORD = 0xB30
+WRAPPER = 16      # bytes before the arena; also where the CRC starts
+TYPES = 20
+TBL_SIZE = 0x24   # sizeof of each type's fixed part
+TBL_VAR = 0x64    # size of each type's variable part, plus 4
+TBL_NEXTID = 0x7EA
+TITLE = 0x1AC
+FIRST = 0xB30     # first record payload
 
-NAME_OFF = 0x4C   # offset of the name inside a record
+NAME_OFF = 0x4C   # name inside a record, Shift-JIS, NUL padded
+EXTRA_OFF = -4    # bytes of variable data beyond the type's own variable part
+
+# Names as the executable registers them, at 0x00100F48.  Two pairs share a
+# string: 6/7 are monsters and their encounter groups, 14/15 are both "Event".
+TYPE_NAMES = [
+    "Field Data", "Dungeon Data", "Town Data", "Story Data", "Class Data",
+    "Human Data", "Monster Data", "Monster Group", "Item Data", "Equip Data",
+    "Important Data", "Room Data", "Castle Data", "System Data", "Event",
+    "Event (2)", "Save Event", "Warp Event", "Chest Event", "Entrance",
+]
 
 
 class Project:
     def __init__(self, data):
         (self.used, self.checksum, self.capacity,
-         self.field_c) = struct.unpack_from("<4I", data, 0)
+         self.base) = struct.unpack_from("<4I", data, 0)
         self.ntypes, = struct.unpack_from("<I", data, 0x14)
         self.objects, = struct.unpack_from("<I", data, 0x18)
         self.size = struct.unpack_from("<%dH" % TYPES, data, TBL_SIZE)
-        self.tbl_b = struct.unpack_from("<%dH" % TYPES, data, TBL_B)
-        self.count = struct.unpack_from("<%dH" % TYPES, data, TBL_COUNT)
+        self.var = struct.unpack_from("<%dH" % TYPES, data, TBL_VAR)
+        self.next_id = struct.unpack_from("<%dH" % TYPES, data, TBL_NEXTID)
         self.data = data
+
+    def crc(self):
+        return zlib.crc32(self.data[WRAPPER:WRAPPER + self.used])
 
     def title(self):
         return decode(self.data[TITLE:TITLE + 64].split(b"\0")[0])
 
+    def stride(self, kind, extra):
+        """Bytes from one record's payload to the next.
+
+        A record occupies a 20-byte allocator header, its fixed part, and a
+        variable part of `var[kind] - 4 + extra` bytes.  Types that never grow
+        have var == 4, which is why fixed records simply step by sizeof + 20.
+        """
+        return self.size[kind] + self.var[kind] + WRAPPER + extra
+
     def walk(self):
-        """Yield (offset, id, type) for as far as the record chain parses."""
-        p = FIRST_RECORD
-        # bytes_used is measured from the start of the file and marks the end
-        # of the last record; the header itself ends 20 bytes before 0xB30.
-        while p < self.used and p + 8 <= len(self.data):
+        """Yield (payload_offset, id, type, extra) for every record."""
+        p = FIRST
+        while p < self.used:
+            if p + 8 > self.used:
+                raise ValueError("record header runs past bytes_used at 0x%X" % p)
             ident, kind = struct.unpack_from("<II", self.data, p)
             if kind >= TYPES or self.size[kind] == 0:
-                yield p, ident, None
-                return
-            yield p, ident, kind
-            p += self.size[kind]
+                raise ValueError("bad type %d at 0x%X" % (kind, p))
+            extra, = struct.unpack_from("<I", self.data, p + EXTRA_OFF)
+            yield p, ident, kind, extra
+            p += self.stride(kind, extra)
+        # The walk stops one allocator header past the last record; that
+        # header is the free pointer, which is what bytes_used records.
+        if p != self.used + 20:
+            raise ValueError("walk ended at 0x%X, expected 0x%X" % (p, self.used + 20))
 
     def name_at(self, off):
         return decode(self.data[off + NAME_OFF:off + NAME_OFF + 32].split(b"\0")[0])
@@ -67,7 +97,6 @@ def decode(b):
 
 
 def strings(data, limit, minlen=4):
-    """ASCII and Shift-JIS runs inside the used part of the arena."""
     pat = rb"(?:[\x20-\x7e]|[\x81-\x9f\xe0-\xef][\x40-\x7e\x80-\xfc]){%d,}" % minlen
     for m in re.finditer(pat, data[:limit]):
         s = decode(m.group())
@@ -76,41 +105,38 @@ def strings(data, limit, minlen=4):
 
 
 def show_header(p):
+    ok = "ok" if p.crc() == p.checksum else "BAD (computed 0x%08X)" % p.crc()
     print("bytes_used   0x%08X  (%d)" % (p.used, p.used))
-    print("checksum     0x%08X  (algorithm unknown)" % p.checksum)
-    print("capacity     0x%08X  (%d = file size - %d)" % (p.capacity, p.capacity, HDR))
-    print("+0x0C        0x%08X" % p.field_c)
+    print("checksum     0x%08X  CRC-32 of arena[0:bytes_used]  %s" % (p.checksum, ok))
+    print("capacity     0x%08X  (%d = file size - %d)" % (p.capacity, p.capacity, WRAPPER))
+    print("saved base   0x%08X  (arena address when written; 0 on memory-card saves)"
+          % p.base)
     print("type count   %d" % p.ntypes)
-    print("objects      %d" % p.objects)
+    print("objects      %d  (records + 1)" % p.objects)
     print("title        %s" % p.title())
     print()
-    print("type  size  tbl_b  next_id  objects")
+    print("type  name             sizeof  var  next_id")
     for t in range(TYPES):
-        print("  %2d  %4d  %5d  %7d  %7d" % (
-            t, p.size[t], p.tbl_b[t], p.count[t], p.count[t] - 1))
+        print("  %2d  %-16s %6d %4d  %7d"
+              % (t, TYPE_NAMES[t], p.size[t], p.var[t], p.next_id[t]))
 
 
-def show_walk(p):
-    total = 0
-    prev = None
-    for off, ident, kind in p.walk():
-        if kind is None:
-            print("  0x%06X  chain stops here (bad type); %d records read" % (off, total))
-            return
-        print("  0x%06X  id %-5d type %2d  size %5d  %s" % (
-            off, ident, kind, p.size[kind], p.name_at(off)))
-        total += 1
-        prev = off
-    end = off + p.size[kind] if prev is not None else FIRST_RECORD
-    print("  %d records, chain ends at 0x%06X, bytes_used = 0x%06X%s" % (
-        total, end, p.used, "  MATCH" if end == p.used else "  MISMATCH"))
+def show_walk(p, only=None):
+    n = 0
+    for off, ident, kind, extra in p.walk():
+        n += 1
+        if only is not None and kind != only:
+            continue
+        print("  0x%06X  id %-5d %-16s size %5d%s  %s"
+              % (off, ident, TYPE_NAMES[kind], p.size[kind],
+                 "  +%-7d" % extra if extra else " " * 10, p.name_at(off)))
+    print("  %d records, objects field says %d" % (n, p.objects - 1))
 
 
 def show_diff(a, b):
     runs = []
     cur = None
-    n = min(len(a), len(b))
-    for i in range(n):
+    for i in range(min(len(a), len(b))):
         if a[i] != b[i]:
             if cur and i - cur[1] <= 16:
                 cur[1] = i
@@ -131,8 +157,11 @@ def main():
     ap.add_argument("project", nargs="+")
     ap.add_argument("--header", action="store_true")
     ap.add_argument("--walk", action="store_true")
+    ap.add_argument("--type", type=int, help="with --walk, show only this type")
     ap.add_argument("--strings", action="store_true")
     ap.add_argument("--diff", action="store_true")
+    ap.add_argument("--fix-checksum", metavar="OUT",
+                    help="write a copy with the CRC-32 recomputed")
     args = ap.parse_args()
 
     blobs = [open(f, "rb").read() for f in args.project]
@@ -141,6 +170,15 @@ def main():
             sys.exit("--diff needs exactly two projects")
         return show_diff(*blobs)
 
+    if args.fix_checksum:
+        if len(blobs) != 1:
+            sys.exit("--fix-checksum takes one project")
+        out = bytearray(blobs[0])
+        struct.pack_into("<I", out, 4, Project(blobs[0]).crc())
+        open(args.fix_checksum, "wb").write(bytes(out))
+        return print("wrote %s with checksum 0x%08X"
+                     % (args.fix_checksum, struct.unpack_from("<I", out, 4)[0]))
+
     for f, blob in zip(args.project, blobs):
         p = Project(blob)
         if len(blobs) > 1:
@@ -148,7 +186,7 @@ def main():
         if args.header or not (args.walk or args.strings):
             show_header(p)
         if args.walk:
-            show_walk(p)
+            show_walk(p, args.type)
         if args.strings:
             for off, s in strings(blob, p.used):
                 print("  0x%06X  %s" % (off, s))

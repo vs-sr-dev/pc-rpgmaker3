@@ -4,6 +4,10 @@ This is the engine's central data structure: everything the user creates in
 the editor — maps, events, database, cutscenes — lives in a single
 1,994,768-byte file.
 
+**Status: solved.** The checksum is CRC-32, the record walk is exact, and
+`tools/rpgproj.py` reads every record of all eight projects we have, ending on
+the last byte of each and agreeing with the file's own object count.
+
 ## Where to find one
 
 The disc carries three of them in `sample/game/`. The far more useful source
@@ -22,15 +26,17 @@ A saved project occupies one directory per slot:
     BASLUS-21178system/…             33792   editor-wide settings
 
 `BASLUS-21178a/BASLUS-21178a` is byte-for-byte the same format as
-`sample/game/sample1`, down to the header tables. Anything learned from one
-applies to the other.
+`sample/game/sample1`. Anything learned from one applies to the other.
+
+Note when capturing cards from PCSX2: the directory's modification timestamp
+does **not** advance when the editor saves. Compare file contents, not dates.
 
 ## File layout
 
-    +0x00  u32   bytes_used        end of the last record, from the file start
-    +0x04  u32   checksum          algorithm not identified
+    +0x00  u32   bytes_used        length of the meaningful part of the arena
+    +0x04  u32   checksum          CRC-32 of arena[0 : bytes_used]
     +0x08  u32   capacity          always file size - 16
-    +0x0C  u32   0 on memory-card saves, 0x00A0_2A00-ish in the disc samples
+    +0x0C  u32   arena address at save time (0 on memory-card saves)
     +0x10  …     arena
 
 Because `capacity` is exactly the file size minus 16, the first 16 bytes are a
@@ -40,57 +46,166 @@ wrapper and everything after is one flat arena. The same wrapper appears on
 the engine's generic "saved buffer" header rather than something specific to
 projects.
 
+`+0x0C` is *not* a relocation base: the file contains no pointers at all.
+Interpreting it as the arena's address and searching for the resulting
+pointer values finds none — only 84 words in the whole of `sample1` even fall
+in the right range, and none of them point at a record. The field is written
+by the disc build and left at zero by the console's own save path.
+
 **Only the first `bytes_used` bytes mean anything.** Past that point the file
 is uninitialised PS2 memory that was written out with the rest of the buffer:
 a freshly created project reports 2,844 bytes used yet has non-zero data
 almost all the way to the end of the file. This is why an earlier diff of the
 three samples appeared to show 56 % of the bytes changing — most of that was
-leftover heap, not project data. Two saves made minutes apart on the same
-console carry *identical* garbage, which is what makes differential analysis
-work at all.
+leftover heap. Two saves from the same session carry *identical* garbage,
+which is exactly what makes the differential method work.
+
+## The checksum
+
+    checksum = crc32(data[0x10 : 0x10 + bytes_used])
+
+Plain CRC-32 as zlib computes it: reflected, polynomial 0xEDB88320, initial
+value 0xFFFFFFFF, final complement. It verifies on all eight projects we
+have — the five memory-card captures and the three disc samples — and
+`tools/rpgproj.py --fix-checksum` reproduces the game's own value byte for
+byte.
+
+It belongs to the wrapper, not to projects: the identical formula also
+verifies on `info.dat` (1,008 bytes covered of 1,024) and on the editor's
+system save `BASLUS-21178system` (33,776 of 33,792). Every checksum the save
+path writes is now accounted for.
+
+Session 3 had ruled CRC-32 out, and was wrong to: the search had covered the
+right polynomial but never the right range. The range is not "to
+`bytes_used`" measured from the file start, it is *the arena itself* —
+`bytes_used` is the arena's length, so the CRC starts at 0x10 and runs
+`bytes_used` bytes from there, ending 16 bytes further into the file than
+every range tried before.
+
+Two things made it findable. First, a capture that changes exactly one byte
+(`onestat.ps2`, one class stat from 0 to 1). Second, the fact that a CRC is
+linear over GF(2): for any CRC whatsoever,
+
+    crc(A) xor crc(B) = crc_with_zero_init(A xor B)
+
+so the *difference* of two checksums depends only on the differing bytes and
+on how many bytes follow them — not on the initial value, and not on any of
+the data before the change. Feeding a single 0x01 byte followed by zeros into
+each candidate polynomial and checking after every added zero turns a
+four-dimensional search into a one-dimensional one. It reported exactly one
+hit, giving the polynomial and the end of the range together.
+
+The routine is in the executable, and matches. `crc32_init_table` at
+0x00357B98 builds a reflected 256-entry table from 0x04C11DB7 by bit-reversing
+each entry, and `crc32_update(state, buf, end)` at 0x00357C70 is the ordinary
+table-driven loop. The caller at 0x001C0F70 reads the buffer pointer, length
+and capacity from a descriptor and writes all three of `bytes_used`,
+`checksum` and `capacity` into the wrapper, which confirms the field meanings
+from the other side.
 
 ## Global header (0x00 .. 0xB30)
 
     +0x10  u32   0x00010000     constant
     +0x14  u32   20             number of record types
-    +0x18  u32   object counter (1 in a new project, 2 after adding one object)
+    +0x18  u32   objects        record count + 1
     +0x1C  u32   0
     +0x20  u32   same value as +0x18
-    +0x24  20×u16  size of a record, per type   (table A, constant in every file)
-    +0x64  20×u16  second per-type table        (table B, constant in every file)
-    +0xA4  …       small fixed fields, identical in all five files seen
+    +0x24  20×u16  sizeof of each type's fixed part      (table A)
+    +0x64  20×u16  each type's variable part, plus 4     (table B)
+    +0xA4  …       small fixed fields, identical in all files seen
     +0x1AC string  project title, Shift-JIS
     +0x200 u32     a count (140 / 75 / 25 in the samples, -1 in a new project)
     +0x208 float   -3.14159265 in two samples — a saved camera angle
-    +0x7EA 20×u16  next free ID, per type (table C)
+    +0x7EA 20×u16  next free ID, per type               (table C)
 
-Table C is the one that moves: a new project has `1` in all twenty slots, and
-adding a single Sword & Shield class turns slot 4 into `2`. So the value is
-the *next* ID to hand out, and the number of objects of a type is `C[t] - 1`.
+`objects` is a reliable check on any walk: it is the number of records plus
+one, and it matches exactly on all eight files (579 for `sample1`'s 578
+records, 285 for `sample2`, 503 for `sample3`).
 
-Tables A and B are byte-identical across all five projects examined, so they
-are the engine's fixed schema rather than per-project data:
+Tables A and B are byte-identical across every project examined, because they
+are not project data at all — they are the schema, and they come straight out
+of the executable.
 
-    type   0     1     2     3     4     5     6     7     8     9
-    A    436  1752  1132   260  4172   532  4188   492   288   336
-    B     88  1092   100     4     4   636     4     4     4     4
+## The schema, from the executable
 
-    type  10    11    12    13    14    15    16    17    18    19
-    A    264   356   256   444   260   260   252   300   280   256
-    B      4    72     4  2236    16    16     4     4     4     4
+At 0x00100F48 the engine registers its twenty record types with twenty
+consecutive calls to the same function (0x002CD948), each passing a size, a
+second size, a flag and a name. `register_type` writes them into a 64-byte
+descriptor:
 
-Type 4 is the character class: creating one incremented `C[4]` and appended a
-record of exactly `A[4]` = 4,172 bytes. Several of the A values match the
-`sizeof` of the `CEdPro*` classes recovered from RTTI and the `.smp` record
-sizes noted in `03-engine-architecture.md`. What B holds is still unknown; it
-is not a count, since it never varies.
+    +0x00  u32   type index
+    +0x04  u16   sizeof, the fixed part          -> table A in the file
+    +0x06  u16   variable part + 4               -> table B in the file
+    +0x08  u32   0, the counter                  -> table C in the file
+    +0x0C  u32   the flag
+    +0x10  16    the name
+
+So the three tables in the file header are three columns of one descriptor
+array. Recovering the names settles what the twenty types are:
+
+    type  name              A: sizeof   B: var   flag
+      0   Field Data              436       88    0
+      1   Dungeon Data           1752     1092    1
+      2   Town Data              1132      100    1
+      3   Story Data              260        4    0
+      4   Class Data             4172        4    0
+      5   Human Data              532      636    1
+      6   Monster Data           4188        4    0
+      7   Monster Data (again)    492        4    0
+      8   Item Data               288        4    0
+      9   Equip Data              336        4    0
+     10   Important Data          264        4    0
+     11   Room Data               356       72    0
+     12   Castle Data             256        4    0
+     13   System Data             444     2236    0
+     14   Event                   260       16    0
+     15   Event (again)           260       16    0
+     16   Save Event              252        4    0
+     17   Warp Event              300        4    0
+     18   Chest Event             280        4    0
+     19   Entrance                256        4    0
+
+Three registrations reuse a register still holding the previous string
+instead of loading their own, which is why type 7 is labelled "Monster Data"
+and types 14 and 15 are both "Event". The contents disambiguate them: type 6
+holds monsters (*Killer Bee*, *Orc*), type 7 holds encounter groups named
+after terrain (*Grasslands 1*, *Forest 2*), and 14/15 are two flavours of
+event (*Sign*, *Opening Handling* against 229 *Decorative Event*).
+
+Every name matches what the records actually contain, which is the strongest
+confirmation that both the walk and the table indices are right.
+
+The flag is 1 for exactly Dungeon, Town and Human, and 0 for everything else.
+What it selects is not known.
+
+Table C, `next_id`, is a per-type counter of IDs handed out. It is *not* a
+record count: `sample1` has `C[4] = 22` but eleven classes, the difference
+being classes created and deleted while the demo was built.
 
 ## Records
 
-Records start at file offset **0xB30** and are laid end to end, each `A[type]`
-bytes long, with no separator:
+Every record is one allocation in a bump allocator. An allocation is a
+20-byte header followed by the record's data, and `bytes_used` points at the
+header of the allocation that would come next — which is why a brand-new
+project reports 0xB1C while its first record's data would begin at 0xB30.
 
-    +0x00  u32   id
+From one record's data to the next:
+
+    next = payload + A[type] + B[type] + 16 + extra
+
+where `extra` is the u32 at `payload - 4`, the last word of the 20-byte
+header. Equivalently: 20 bytes of header, `A[type]` bytes of fixed record,
+then `B[type] - 4 + extra` bytes of variable data. Types that never grow have
+`B = 4`, so their records simply step by `sizeof + 20`, which is what the
+memory-card captures showed.
+
+This walks all eight projects end to end. The last step lands exactly 20 bytes
+past `bytes_used` — on the free pointer's own header — and the record count
+equals `objects - 1` every time.
+
+The fixed part begins:
+
+    +0x00  u32   object id, unique across the whole project
     +0x04  u32   type
     +0x08  u32   0
     +0x0C  u32   id again
@@ -100,20 +215,48 @@ bytes long, with no separator:
     +0x1C  u32   -1        /
     +0x4C  char  name, Shift-JIS, NUL-padded
 
-The name at `+0x4C` is confirmed twice over: `New Class 01` in the memory-card
-save, and in `sample3` two consecutive records whose names sit exactly
-`A[type]` bytes apart. Searching the samples for name-like strings separated
-by each candidate stride finds chains for twelve of the twenty types, which is
-independent confirmation that table A really is `sizeof`.
+The id is global, not per type: `sample1`'s eleven classes carry 6, 12, 13,
+15, 19, 478, 614, 619, 672, 674 and 675, interleaved with every other record
+in creation order.
 
-The `-1` pair at `+0x10`/`+0x1C` looks like the prev/next of an empty list —
-consistent with the record being the only one of its type.
+Which types actually grow, measured across the three samples:
 
-`tools/rpgproj.py --walk` follows this chain. On memory-card saves it lands
-exactly on `bytes_used`; on the disc samples it parses the first handful of
-records and then desynchronises, so at least one record kind is
-variable-length or interleaved with something else. Finding that rule is the
-next job.
+    type  0  Field Data      extra = 39208, always
+    type  1  Dungeon Data    2672 .. 9120
+    type  3  Story Data      364 .. 1500-ish
+    type  5  Human Data      932 .. 6976
+    type 14  Event           128 .. 950-ish
+
+Everything else has `extra = 0` in every sample. Story, Human and Event grow
+because they carry dialogue and event scripts; Dungeon carries its floor
+layout.
+
+## The world map
+
+`Field Data` is the same size in every project, which makes it a fixed grid,
+and its variable part says so outright. After the record's 436 fixed bytes
+come 84 bytes (that is `B[0] - 4`), then the 39,208 bytes of `extra`, which
+open with a 24-byte header:
+
+    +0x00  u32    1
+    +0x04  u32    0x00030000
+    +0x08  float  -10.0
+    +0x0C  u32    13
+    +0x10  u32    140          width
+    +0x14  u32    140          height
+    +0x18  …      19,600 bytes: one byte per tile, 140 x 140
+    …             19,584 further bytes, not yet identified
+
+Autocorrelating the tile plane gives a clean peak at a row stride of 140
+bytes, with the expected harmonic at 280, which confirms the two dimension
+words. The plane ends exactly 19,600 bytes in. In `sample1`'s *Elgiza Isle*
+the dominant tile is 0x07 (12,679 of 19,600 cells) with 0x03, 0x02, 0x04 and
+0x01 making up most of the rest — a sea of one terrain with a handful of
+others drawn onto it, which is what an overworld looks like.
+
+The trailing 19,584 bytes have a completely different distribution (144
+distinct values clustered around 0x70..0x7f) and are most likely a height or
+attribute layer.
 
 ## Anatomy of a class record (type 4, 4,172 bytes)
 
@@ -127,18 +270,40 @@ skeleton easy to read. Thirty-nine words hold `-1`:
   block, then one last word at `+0x1044` where the record runs out.
 
 So a class carries an array of fifteen 240-byte entries, all empty in a
-default class — very likely the techniques the class learns, which is exactly
-the kind of table the editor exposes on its class screen.
+default class — very likely the techniques the class learns.
+
+Two fields are pinned exactly, by captures that changed one thing each:
+
+    +0x4C   char   name; renaming to ZZZZTESTZZZZ changed those 12 bytes and
+                   nothing else, and left bytes_used untouched, so the field
+                   is fixed-size and inline
+    +0x120  u8     the first attack stat; setting it from 0 to 1 in the editor
+                   changed this single byte and the checksum, nothing more
+
+## How the captures were used
+
+Five memory-card projects, each one change apart:
+
+    empty        2,844 bytes used, 0 records
+    newclass     7,036            1 record   (+4,192)
+    twoclasses  11,228            2 records  (+4,192)
+    renamed     11,228            2 records  (name only)
+    onestat     11,228            2 records  (one byte only)
+
+The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
+settles the allocator: the overhead repeats on every allocation and records
+stay contiguous. `renamed` and `onestat` keep `bytes_used` fixed, which is
+what makes them usable as checksum probes — and `onestat`, differing in a
+single byte, is what cracked it.
 
 ## What is not understood yet
 
-* **The checksum at `+0x04`.** It is not additive (the delta between two
-  nearly identical saves does not match the delta of any word sum), and it is
-  not CRC-32 in any of the usual polynomial/init/reflect combinations, over
-  any plausible range. Needed before the original engine will accept a file
-  we write.
-* **The 20-byte step between `bytes_used` of an empty project (0xB1C) and the
-  first record (0xB30).** Records themselves are contiguous, so this gap
-  belongs to the global header.
-* **Table B**, and the fixed fields between `+0xA4` and `+0x200`.
-* **Why the sample walk desynchronises** — the variable-length record kind.
+* **The flag** in the type descriptor (1 for Dungeon, Town and Human).
+* **Table B's meaning** beyond its arithmetic role — it is the minimum size
+  of a record's variable part, but why Room Data needs 68 bytes of it and
+  System Data 2,232 is unclear.
+* **The 19,584 trailing bytes** of a Field's map data.
+* **The fixed fields** between `+0xA4` and `+0x200` of the global header.
+* **Writing a project back to a memory card**, which needs the ECC in the
+  spare area of each 528-byte page recomputed. The project file itself we can
+  now build and checksum correctly.

@@ -1,91 +1,104 @@
-# TODO — session 4
+# TODO — session 5
 
-Session 3 opened the project format with a pair of differential memory-card
-saves. The same lever will finish it, and the captures needed are listed
-first because they are cheap to make and unblock everything else.
+The project format is structurally solved: the checksum verifies, and every
+record in every project we hold parses to the last byte. Two directions open
+up from here, and they are worth doing in this order because the first one
+turns the editor into a measuring instrument for the second.
 
 ## 0. Memory-card captures to make (a few minutes each)
 
-Each one is: make the change in the editor, save, copy the `.ps2` file out.
-Keep them one change apart — the value of the method is that exactly one
-thing moves.
+Same method as before: make one change in the editor, save, copy the `.ps2`
+out. Each capture pins fields outright, because the diff is now down to the
+handful of bytes that actually moved.
 
-Building on `empty.ps2` / `newclass.ps2`:
+Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
+attack 1):
 
-1. **`twoclasses.ps2`** — add a *second* class, everything default. Settles
-   the last ambiguity in the allocator: whether records stay contiguous
-   (expected stride 4,172) or whether the 16-byte step seen between the
-   header and the first record repeats for every allocation.
-2. **`renamed.ps2`** — take `newclass.ps2` and only rename the class, to
-   something long and distinctive (`ZZZZTESTZZZZ`). Confirms the name field
-   and its capacity, and — with `bytes_used` unchanged — gives the checksum a
-   clean, tiny input change to work with.
-3. **`onestat.ps2`** — from `newclass.ps2`, change one numeric field on the
-   class screen (one attack value, by a known amount, say from 10 to 11).
-   Pins that field's offset and its width outright.
-4. **`onetech.ps2`** — from `newclass.ps2`, add one technique to the class.
-   Should light up the first of the fifteen 240-byte entries at `+0x230` and
-   confirm what that array is.
-5. **`onechar.ps2`** — from `empty.ps2`, add one character instead of a
-   class. Identifies which type index characters use, and gives a second
-   record type to compare layouts against.
+1. **`onetech.ps2`** — add one technique to the renamed class. Should light up
+   the first of the fifteen 240-byte entries at `+0x230` and settle what that
+   array is. Still the most informative single change available.
+2. **`onechar.ps2`** — from a fresh project, add one character instead of a
+   class. Gives a Human record made to order, and Human is one of the three
+   types carrying the mystery flag.
+3. **`onemap.ps2`** — from a fresh project, paint a single tile somewhere
+   identifiable on the world map, save, then paint one more. Two captures
+   that differ by one tile locate the origin and the row direction of the
+   140 x 140 grid exactly, and tell us whether the trailing 19,584 bytes move
+   with it.
+4. **`stats.ps2`** — from `onestat.ps2`, change *several* class numbers at
+   once to distinct, recognisable values (attack 11, defence 22, speed 33…).
+   One capture then labels a whole block of the class record instead of one
+   byte.
+5. **`twochar.ps2`** — a second character, to see how a Human's variable part
+   grows with dialogue.
 
-If only one of these is possible, make it number 1.
+If only one is possible, make it number 3: the map is the largest single
+piece of a project and the only one where we know the shape but not the
+addressing.
 
-## 1. Finish the record walk
+## 1. Write a project back to a memory card
 
-`tools/rpgproj.py --walk` lands exactly on `bytes_used` for memory-card
-saves and desynchronises a few records into the disc samples. Something is
-variable-length. Two ways in:
+The last mechanical step before we can hand the original engine a file we
+built. `tools/ps2mc.py` reads `.ps2` images; it needs to write them. Two
+pieces:
 
-* the samples' failure points are known and small — dump the bytes around
-  each and look for a length field;
-* capture 5 above gives a second record type built to order, which is a much
-  cleaner place to see how a record's tail is terminated.
+* replace a file's contents in place (same length — projects are always
+  1,994,768 bytes, so no FAT surgery is needed);
+* recompute the ECC in the 16-byte spare area of each 512-byte page touched.
+  Standard PS2 memory-card Hamming, three bytes per 128-byte block.
 
-Once the walk is complete on `sample1`, the whole database of a real game
-becomes readable, and the per-type record layouts can be mapped against the
-`.smp` presets, whose contents are already known.
+Self-check before touching a real card: re-encode pages we did *not* change
+and confirm the spare area comes out identical to what PCSX2 wrote.
 
-## 2. The checksum at `+0x04`
+Then the payoff — take `empty.ps2`, splice in a project built by our own
+tools, boot the editor, and see it load. That is validation nothing else
+gives us.
 
-Ruled out so far: word/byte/halfword sums, XOR, Adler-32, and CRC-32 with
-reflected and non-reflected polynomials (0x04C11DB7, 0xEDB88320, 0x1EDC6F41,
-0x82F63B78) over ranges starting at 0x00/0x04/0x08/0x20 and ending at
-`bytes_used`, at the aligned `bytes_used`, and at end of file.
+## 2. Map the record types field by field
 
-Next: find it in the executable instead of guessing. The routine will be
-called right before the memory-card write, so start from the sceMcWrite
-call sites in `SLUS_211.78` and walk back. Capture 2 above gives a
-minimal-difference pair to test any candidate against.
+With the walk exact and the editor able to change one value at a time, this
+is now grinding rather than puzzling — and it is what the port actually
+needs. Twenty types; the ones that matter first are Class (4,172 bytes),
+Human (532 + variable), Item, Equip and Monster.
+
+Two sources meet in the middle: the `.smp` presets on the disc hold the same
+objects with known contents (see question 6 in `05-open-questions.md`), and
+the editor produces controlled diffs. A field visible in both is a field
+identified.
+
+Worth doing early: dump every record of `sample1` per type and eyeball the
+non-zero columns. 578 records of a finished game is a large sample, and
+fields that are constant across all records of a type are structural rather
+than data.
 
 ## 3. `.bin` geometry — start the VIF/GIF disassembler
 
-Unchanged from session 3, and now the largest untouched piece of the engine.
-The `.bin` files are pre-built DMA/VIF1 chains; `UNPACK V4_32` codes are
-already recognisable. Two halves:
+Unchanged, and now the largest untouched piece of the engine. The `.bin`
+files are pre-built DMA/VIF1 chains; `UNPACK V4_32` codes are already
+recognisable. Two halves:
 
 * a VIF/GIF packet disassembler, to see what data is being uploaded;
 * a first pass over `.vutext` and the 16 `.DVP.overlay.*` microprograms, to
   learn the vertex layout they expect and how skinning is done.
 
 Aim for reading one simple object end to end (`evobj/a/a00.bin`, 22 KB, with
-its 128x128 texture) rather than general coverage.
+its 128x128 texture) rather than general coverage. `tools/mipsdis.py` covers
+the EE side already; the VU side needs its own decoder.
 
 ## 4. Smaller, self-contained wins
 
 * **`.fnt`** — the header is understood; write the glyph decoder and dump
   `ascii16` and `jis16` to PNG sheets. Small and immediately verifiable, and
-  `jis16` is now interesting in its own right (curiosity 16).
+  `jis16` is interesting in its own right (curiosity 16).
 * **`.hd`/`.bd`** — standard SCE sound banks; a VAG extractor would give us
   the sound effects and confirm the MIDI + sample pipeline.
 * **The editor's system save** (`BASLUS-21178system`, 33,792 bytes) uses the
-  same 16-byte wrapper but is full rather than bump-allocated, and 485
-  separate regions of it changed between two saves a minute apart. Worth an
-  hour to find out what the editor keeps there.
-* **`info.dat`** — mostly mapped: the same wrapper, a title, and PS2-style
-  binary timestamps at `+0x7C` and `+0x84`. The 24 bytes at `+0x64` change
-  completely between saves and start with a float in the 0..1 range.
+  same wrapper and the same CRC, but is full rather than bump-allocated, and
+  485 separate regions of it changed between two saves a minute apart. Worth
+  an hour to find out what the editor keeps there.
+* **`info.dat`** — the wrapper and its CRC are confirmed; a title and PS2
+  binary timestamps at `+0x7C` and `+0x84` are mapped. The 24 bytes at `+0x64`
+  change completely between saves and start with a float in 0..1.
 
 ## 5. Loose ends worth a few minutes
 
@@ -102,6 +115,6 @@ its 128x128 texture) rather than general coverage.
 
 ## 6. Carried over
 
-The `.iab` frame header work that stood at item 2 last session is untouched
-and still open — see `05-open-questions.md` question 3. It sits below the
-project format now, because the project format is what the port needs first.
+The `.iab` frame header work is untouched and still open — see
+`05-open-questions.md` question 4. It sits below the project format because
+the project format is what the port needs first.

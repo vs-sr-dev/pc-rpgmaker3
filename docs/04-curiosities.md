@@ -228,3 +228,35 @@ objects of one type and 32 of another where the playable samples have a
 handful, and no story text to speak of. It is a scratch file for checking
 that town layout works, left in the retail directory next to the two real
 demos.
+
+## 18. The engine copy-pasted three of its own type names
+
+The twenty record types are registered one after another at 0x00100F48, each
+call passing a size, a second size, a flag and a pointer to its name. Three of
+those calls never load their own name pointer — they run with whatever the
+register happened to be holding from the call before.
+
+So the executable believes it has two type 6s and two type 14s:
+
+    6   Monster Data     4188 bytes   Killer Bee, Orc, Undead Soldier
+    7   Monster Data      492 bytes   Grasslands 1, Forest 2, Wasteland 1
+    14  Event             260 bytes   Sign, Opening Handling
+    15  Event             260 bytes   229 x Decorative Event
+
+Type 7 is plainly the encounter tables — monster *groups* per terrain — and
+14 and 15 are two flavours of event. The names are only ever shown in
+debugging output, so nothing in the shipped editor gives it away. The bug
+survives into the retail disc because it costs nothing: the strings are
+decoration on a table the engine indexes by number.
+
+## 19. The overworld is 140 x 140, in every project ever made
+
+A Field record's variable tail is 39,208 bytes in `sample1`, in `sample2` and
+in `sample3` alike — the one variable-length record type whose length never
+varies. Its 24-byte header says why: two words reading 140 and 140, then
+19,600 bytes of tile indices, one per cell.
+
+The map is not something the user sizes. Every RPG Maker 3 world, in every
+project anyone ever built on the console, is exactly 140 tiles square. In
+*Dear Brave Heart* 12,679 of those 19,600 cells hold tile 0x07 — the sea that
+*Elgiza Isle* sits in.

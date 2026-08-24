@@ -111,3 +111,56 @@ Results:
 Still open: the checksum at `+0x04` resisted every additive scheme and every
 usual CRC-32 variant, and the record walk desynchronises partway through the
 disc samples, so at least one record kind is variable-length.
+
+## Session 4 — the project format, finished
+
+Goal: the two things session 3 left open — the checksum at `+0x04`, and the
+record walk that desynchronised on the disc samples.
+
+Three more memory-card captures, each one change past the last: a second
+default class, then the first class renamed to `ZZZZTESTZZZZ`, then one
+attack stat moved from 0 to 1.
+
+Results:
+
+* **The checksum is CRC-32** of `data[0x10 : 0x10 + bytes_used]` — the arena,
+  from where it starts, for exactly its own declared length. It verifies on
+  all eight projects we hold. Session 3 had tested the right polynomial but
+  never that range, which ends 16 bytes further in than anything tried.
+  Found by exploiting the linearity of CRCs: the *difference* of two
+  checksums depends only on the differing bytes and the number of bytes
+  after them, so the one-byte capture reduced a four-dimensional search to
+  feeding zeros into a register until it matched. One hit, no ambiguity.
+* **Confirmed in the executable**: `crc32_init_table` at 0x00357B98,
+  `crc32_update` at 0x00357C70, and the caller at 0x001C0F70 that writes
+  `bytes_used`, `checksum` and `capacity` into the wrapper.
+* **The record walk is exact.** The step is
+  `A[type] + B[type] + 16 + extra`, where `extra` is the u32 immediately
+  before the record. Table B — the "second per-type table" that had been a
+  mystery since session 3 — is the size of each type's *variable* part. It
+  reads 4 for every fixed type, which is why those records just step by
+  `sizeof + 20`. All eight projects now walk to their last byte, and the
+  record count matches the file's own `objects` field every time: 578 for
+  `sample1`, 284 for `sample2`, 502 for `sample3`.
+* **The twenty record types have names**, recovered from the registration
+  code at 0x00100F48: Field, Dungeon, Town, Story, Class, Human, Monster,
+  monster groups, Item, Equip, Important, Room, Castle, System, two kinds of
+  Event, Save Event, Warp Event, Chest Event, Entrance. Every one matches
+  what the records actually hold, which independently confirms the walk.
+  The whole database of a real game — 578 records of `sample1`, *Dear Brave
+  Heart* — is now readable.
+* **The allocator is settled**: a 20-byte header per allocation, records
+  contiguous, `bytes_used` pointing at the header of the allocation that
+  would come next.
+* **The world map is a fixed 140 x 140 grid.** Every Field record in every
+  sample has the same 39,208-byte tail, and it opens with a 24-byte header
+  that states the two dimensions; autocorrelation of the tile plane peaks
+  cleanly at a stride of 140.
+* **Two class fields pinned outright** by the single-change captures: the
+  name is inline at `+0x4C`, and `+0x120` is an attack stat, one byte.
+* The file contains **no pointers**; `+0x0C` is not a relocation base.
+* `tools/mipsdis.py` added — disassemble the executable by virtual address.
+
+What is left of the format is meaning rather than structure: the flag in the
+type descriptor, the trailing half of a map's tile data, and the field-by-field
+layout of each record type.
