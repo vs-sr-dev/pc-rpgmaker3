@@ -14,9 +14,9 @@ handful of bytes that actually moved.
 Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
 attack 1):
 
-`skillcost.ps2` and `skillanim.ps2` are done. Between them the special-skill
-entry is finished: every field that is ever non-zero in the demo now has a
-name, and the two pick-lists resolve against the executable. What remains:
+`skillcost.ps2`, `skillanim.ps2` and `healfx.ps2` are done, and between them
+the special-skill entry is finished: every field the demo ever sets has a
+name, and all three pick-lists resolve against the executable. What remains:
 
 1. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
@@ -31,10 +31,12 @@ name, and the two pick-lists resolve against the executable. What remains:
 4. **`twochar.ps2`** — a second character, to see how a Human's variable part
    grows with dialogue.
 
-One small capture would tidy the last loose end in the skill entry:
-**`healfx.ps2`** — give a *recovery* skill a visual effect, say *Heal 5*. If
-the field lands on 5 the sub-list reading is settled; if it lands on 30 the
-index is absolute after all and the demo's heals mean something else.
+Two small ones would tidy what is left around skills. **`healeff.ps2`** —
+give a recovery skill an add-effect, say *Cure Poison*; the executable has a
+separate recovery list at `0x2EC6D0`, and this says whether `+0x0E0` is
+category-relative the way the visual effect turned out to be.
+**`skillcat.ps2`** — make one skill in each of the two categories the demo
+never uses, to name the remaining values of `+0x0C0`.
 
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.

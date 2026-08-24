@@ -295,7 +295,7 @@ last entry running eight bytes short of a full one.
     +0x004  char[22]  name, Shift-JIS, NUL-terminated
     +0x01A  char      description, NUL-terminated, "\n" for line breaks
     +0x0BC  u32       skill type: 0 uses HP, 1 is magic and uses MP
-    +0x0C0  u32       effect category, 3 = recovery
+    +0x0C0  u32       effect category, 3 = Recovery
     +0x0C4  u32       always 0
     +0x0C8  u32       visual effect, an index into the editor's pick-list
     +0x0CC  u32       always 0
@@ -303,7 +303,7 @@ last entry running eight bytes short of a full one.
     +0x0D4  u32       always 0
     +0x0D8  u32       target: 0 one, 1 all
     +0x0DC  u32       effect points
-    +0x0E0  i32       effect id, -1 for none
+    +0x0E0  i32       add-effect, an index into the list below, -1 for none
     +0x0E4  u32       cost in points
 
 Session 3 had guessed fifteen entries at `+0x230`, from the lattice of `-1`
@@ -410,13 +410,23 @@ Japanese names: ポイズンボール(青), ポイズンボール(黄), 強化�
 list the editor displays, not a row of the table**, so three cut effects
 renumber everything below them. (Curiosity 21.)
 
-One qualification. Recovery skills index a sub-list of their own: *Healing
-Plus* and *Healing Wind* hold 1 and ヒール holds 10, which as whole-list
-positions would be *Fireball (Red)* and *Thunder*, and as positions in the
-*Heal 1*..*Heal 10* block are *Heal 1* and *Heal 10*. So `+0x0C8` is relative
-to whatever sub-list `+0x0C0` selects; the capture only exercised category 0,
-whose sub-list happens to be the head of the table, so it cannot separate the
-two readings on its own.
+One qualification, since settled. Recovery skills index a sub-list of their
+own: *Healing Plus* and *Healing Wind* hold 1 and ヒール holds 10, which as
+whole-list positions would be *Fireball (Red)* and *Thunder*, and as positions
+in the *Heal 1*..*Heal 10* block are *Heal 1* and *Heal 10*. `healfx.ps2` was
+made to decide it — a new *Recovery* skill, *Soothe*, given the effect
+*Heal 5*. The field holds **5**, not the 30 an absolute index would need.
+`+0x0C8` is relative to the sub-list `+0x0C0` selects.
+
+`healfx.ps2` is also the first capture to create a skill in an entry other
+than the first, and it behaves: *Soothe* landed in entry 2, `bytes_used` did
+not move, and the marker for the blank entry 3 went to 1 — the same
+mark-the-next-row behaviour `onetech` showed. Two smaller things fall out of
+it. The editor words the target as "1 ally" for a recovery skill and "1
+target" for an attacking one, but stores the same 0, so `+0x0D8` is only ever
+one-versus-all and the side is implied by the category. And *Soothe* was given
+500 effect points, which the editor accepted — the 0..256 that Session 4
+measured across the demo is not a limit either.
 
 Read back through both lists, the demo decodes into something obviously
 right — `tools/rpgproj.py --skills --elf SLUS_211.78`:
@@ -450,10 +460,38 @@ technique. Session 4 read it
 as healing-only, which the wider list disproves. Those same strings name
 `+0x0DC`: *effect points* is the editor's own term for it.
 
-`+0x0C0` is 3 on the three recovery skills and 0 on everything else, including
-the damaging spell, so it is a category rather than a school — and it is what
-picks the sub-list `+0x0C8` counts within. Its range runs to 3, so two
-categories exist that the demo never uses.
+`+0x0C0` is the editor's second type dropdown, and `healfx.ps2` named one of
+its values outright: choosing **Recovery** wrote 3. It is 3 on the three
+recovery skills in the demo and 0 on everything else, including the damaging
+spell, so it is a category rather than a school — and it is what picks the
+sub-list `+0x0C8` counts within. Two values between them are never used by
+anything we hold.
+
+### The add-effect list
+
+`+0x0E0` indexes a pointer table at file offset `0x357F78`, which labels
+itself: the word before the first entry is *None*, and the word before that is
+the list's title, **"Add Effects: Attacks"**. Resolved, the table reads
+
+     -1 None          4 Critical Up    9 Strong vs. Humans
+      0 Poison        5 Drain HP      10 Strong vs. Elves
+      1 Slow          6 Drain MP       ...
+      2 Stop          7 Magic Sword   22 Strong vs. Demons
+      3 Death         8 Smash          ...  through 27, Strong vs. Women
+
+Three things agree at once. The *None* slot is at -1, which is exactly what a
+skill with no effect stores. *Megid Arc* and the `twotech` capture both hold
+22, and 22 is *Strong vs. Demons*. And *Thunder Slash* holds 2, which is
+**Stop** — a lightning strike that paralyses, on a skill nobody in this
+project chose.
+
+The title implies siblings, and there are three: "Add Effects: Defense",
+"Add Effects: Special Traits" and "Add Effects: Weaknesses", for the record
+types that carry those instead. There is also a separate recovery list at
+`0x2EC6D0` — *Recover HP*, *Recover MP*, *Cure Poison*, *Cure Slow*,
+*Cure Stop*, *Cure Status*, *Revive*, *Full Revive*, under a "Recovery"
+header — so `+0x0E0` is very likely category-relative in the same way
+`+0x0C8` is. *Soothe* was created with no effect, so nothing pins that yet.
 
 ## How the captures were used
 
@@ -469,6 +507,7 @@ Nine memory-card projects, each one change apart:
     twotech     50,976            3 records  (a second skill and one effect)
     skillcost   50,976            3 records  (cost, points, target on one skill)
     skillanim   50,976            3 records  (animation and visual effect)
+    healfx      50,976            3 records  (a third skill, a recovery one)
 
 The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
 settles the allocator: the overhead repeats on every allocation and records
@@ -483,8 +522,8 @@ single byte, is what cracked it.
   of a record's variable part, but why Room Data needs 68 bytes of it and
   System Data 2,232 is unclear.
 * **The 19,584 trailing bytes** of a Field's map data.
-* **Which sub-list a skill's visual effect counts within**, and what the two
-  unused values of the category at `+0x0C0` mean.
+* **The two unused values of the skill category** at `+0x0C0`, and whether
+  the add-effect at `+0x0E0` is category-relative the way the visual effect is.
 * **The fixed fields** between `+0xA4` and `+0x200` of the global header.
 * **Writing a project back to a memory card**, which needs the ECC in the
   spare area of each 528-byte page recomputed. The project file itself we can

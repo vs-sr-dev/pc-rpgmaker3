@@ -233,3 +233,28 @@ into each — and again the diff outside the checksum is one contiguous run:
   They were cut before translation, by setting an id to -3 rather than
   deleting the row, which is why the Japanese survives and why every effect
   below them is silently renumbered.
+
+A third capture closed the sub-list question and one more field with it.
+`healfx.ps2` created *Soothe* — Magic, Recovery, 500 points, cost 20, visual
+effect *Heal 5*, one ally.
+
+* **The visual effect is sub-list relative.** The field holds 5, not the 30
+  an absolute index would need. The demo's heals really are *Heal 1*,
+  *Heal 1* and *Heal 10*.
+* **`+0x0C0` is the category, and 3 is Recovery**, named by the editor rather
+  than inferred.
+* **`+0x0E0` resolves too.** It indexes a pointer table at `0x357F78` that
+  labels itself "Add Effects: Attacks", with *None* in the slot at -1 —
+  exactly the -1 a skill with no effect stores. *Megid Arc* holds 22, which
+  is *Strong vs. Demons*; *Thunder Slash* holds 2, which is **Stop**, a
+  lightning strike that paralyses. Three agreements from one table.
+* The editor says "1 ally" for a recovery skill and "1 target" for an
+  attacking one but stores the same 0, so the target flag is only ever
+  one-versus-all. And 500 effect points went in fine, so the demo's 256 was
+  never a ceiling.
+* Creating a skill in entry 2 left `bytes_used` alone and marked blank entry
+  3, the same behaviour `onetech` showed for entry 0.
+
+The special-skill entry is now finished: every field the demo ever sets has a
+name, and `tools/rpgproj.py --skills --elf` prints a project's skills with all
+three lists resolved.

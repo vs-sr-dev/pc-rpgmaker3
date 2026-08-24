@@ -44,6 +44,10 @@ ELF_VFX = 0x3A80D8
 ELF_VFX_N = 64
 ELF_ANIM = 0x3EDE20
 ELF_ANIM_N = 8
+# A table of pointers to the "Add Effects: Attacks" list, index 0 = Poison.
+# The entry before it is "None", which is the -1 a skill stores for no effect.
+ELF_EFFECT = 0x357F78
+ELF_VA = 0xFF000     # vaddr = file offset + this
 EXTRA_OFF = -4    # bytes of variable data beyond the type's own variable part
 
 # Names as the executable registers them, at 0x00100F48.  Two pairs share a
@@ -174,8 +178,14 @@ def show_walk(p, only=None):
 
 
 def elf_lists(path):
-    """Return (visual effects, animations) as the editor lists them."""
+    """Return the visual-effect, animation and add-effect lists as the editor
+    shows them, read out of the executable rather than the project."""
     d = open(path, "rb").read()
+
+    def at(va):
+        off = va - ELF_VA
+        return decode(d[off:off + 40].split(b"\0")[0])
+
     vfx = []
     for i in range(ELF_VFX_N):
         rec = d[ELF_VFX + i * 28:ELF_VFX + i * 28 + 28]
@@ -184,12 +194,18 @@ def elf_lists(path):
             vfx.append(decode(rec[:22].split(b"\0")[0]))
     anim = [decode(d[ELF_ANIM + i * 16:ELF_ANIM + i * 16 + 16].split(b"\0")[0])
             for i in range(ELF_ANIM_N)]
-    return vfx, anim
+    eff = {-1: at(struct.unpack_from("<I", d, ELF_EFFECT - 4)[0])}
+    for i in range(64):
+        ptr, = struct.unpack_from("<I", d, ELF_EFFECT + i * 4)
+        if not ptr:
+            break
+        eff[i] = at(ptr)
+    return vfx, anim, eff
 
 
 def show_skills(p, elf=None):
     """List every class's special skills, with the fields sessions 4-5 pinned."""
-    vfx, anim = elf_lists(elf) if elf else (None, None)
+    vfx, anim, eff = elf_lists(elf) if elf else (None, None, None)
     # A recovery skill picks from the Heal block alone, so its stored index is
     # relative to that sub-list rather than to the whole pick-list.
     heal = ["None"] + vfx[26:36] if vfx else None
@@ -204,21 +220,22 @@ def show_skills(p, elf=None):
             name = decode(p.data[e + 4:e + 4 + 22].split(b"\0")[0])
             if not name:
                 continue
-            ty, cat, _, ve, _, an, _, tgt, pts, eff, cost = struct.unpack_from(
+            ty, cat, _, ve, _, an, _, tgt, pts, fx, cost = struct.unpack_from(
                 "<11i", p.data, e + 0xBC)
+            fx = eff.get(fx, fx) if eff else fx
             if vfx:
                 lst = heal if cat == 3 else vfx
                 ve = lst[ve] if ve < len(lst) else "?%d" % ve
                 an = anim[an] if an < len(anim) else "?%d" % an
             rows.append((name, "magic" if ty else "skill", cat,
-                         "all" if tgt else "one", pts, eff, cost, ve, an))
+                         "all" if tgt else "one", pts, fx, cost, ve, an))
         if not rows:
             continue
         print("  %s" % p.name_at(off))
         for r in rows:
-            print("    %-18s %-5s cat %d  %-3s  %3d pts  effect %-3d  cost %-3d"
+            print("    %-18s %-5s cat %d  %-3s %4d pts  cost %-3d  %-19s"
                   "  %-17s %s"
-                  % (r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]))
+                  % (r[0], r[1], r[2], r[3], r[4], r[6], r[5], r[7], r[8]))
 
 
 def write_png(path, w, h, rgb):
