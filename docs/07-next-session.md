@@ -1,4 +1,4 @@
-# TODO — session 5
+# TODO — session 6
 
 The project format is structurally solved: the checksum verifies, and every
 record in every project we hold parses to the last byte. Two directions open
@@ -14,25 +14,30 @@ handful of bytes that actually moved.
 Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
 attack 1):
 
-1. **`skillcost.ps2`** — set an MP cost and a power on `HOLYSWORD`, to
-   distinct memorable values (MP 33, power 77). `+0x0DC` and `+0x0E4` are
-   named on correlation only; one capture confirms both, and whatever else
-   moves labels the rest of the numeric block at `+0x0BC`..`+0x0E4`.
-2. **`onechar.ps2`** — from a fresh project, add one character instead of a
+`skillcost.ps2` is done — it pinned target, effect points and cost in one
+13-byte run, and the skill entry is now understood except for three words.
+What remains:
+
+1. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
    types carrying the mystery flag.
-3. **`onedungeon.ps2`** — create one dungeon, then one town. Both carry a
+2. **`onedungeon.ps2`** — create one dungeon, then one town. Both carry a
    variable part that is *not* laid out like a Field's, and both are on the
    list of three types with the unexplained flag.
-4. **`stats.ps2`** — from `onestat.ps2`, change *several* class numbers at
+3. **`stats.ps2`** — from `onestat.ps2`, change *several* class numbers at
    once to distinct, recognisable values (attack 11, defence 22, speed 33…).
    One capture then labels a whole block of the class record instead of one
    byte.
-5. **`twochar.ps2`** — a second character, to see how a Human's variable part
+4. **`twochar.ps2`** — a second character, to see how a Human's variable part
    grows with dialogue.
 
-If only one is possible, make it number 1: a 240-byte slot with one field
-known is the largest unexplained structure we can create to order.
+A fifth capture would finish the skill entry outright: **`skillanim.ps2`** —
+on `HOLYSWORD`, change the animation and the sound effect, and nothing else.
+`+0x0C8` (0..25) and `+0x0D0` (0..7) are the only two live fields left in the
+block, and their ranges suggest exactly that pair.
+
+If only one is possible, make it number 3, `stats.ps2`: several class numbers
+changed at once labels a whole block of the record instead of one byte.
 
 ## 1. Write a project back to a memory card
 

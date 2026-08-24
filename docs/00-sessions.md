@@ -182,3 +182,25 @@ Results:
 What is left of the format is meaning rather than structure: the flag in the
 type descriptor, the trailing half of a map's tile data, and the field-by-field
 layout of each record type.
+
+## Session 5 — the skill entry, finished
+
+One capture closed the last of the special-skill layout. `skillcost.ps2`
+reopened `HOLYSWORD` and set three things at once: cost 33, effect 77 points,
+and the target from *1 target* to *all enemies*.
+
+* **Three fields pinned in a single diff.** Outside the checksum the file
+  differs in exactly one contiguous 13-byte run, at `+0x0D8` of entry 0 —
+  target, effect points, and cost, with the already-known effect id sitting
+  between two of them and holding still. There is no room left to misread the
+  alignment.
+* It confirms what Session 4 had only inferred: `+0x0DC` runs 128, 96, 256,
+  200 across the Swordfighter's four skills and `+0x0E4` runs 10, 20, 30, 20.
+  The 30 was not a cap — the editor took 33.
+* **The target flag reads back true across the whole demo.** Every 0 is a
+  melee strike, every 1 is a spell, a beam or a party heal.
+* A wider read **corrected a Session 4 line**: `+0x0BC` is not healing-only,
+  it is 1 on *Infernal Flames* as well. And three of the block's words —
+  `+0x0C4`, `+0x0CC`, `+0x0D4` — are zero on all sixteen named skills in the
+  demo, so what is still unexplained in a 240-byte entry is four fields, not
+  seven.

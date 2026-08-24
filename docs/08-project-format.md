@@ -293,16 +293,18 @@ last entry running eight bytes short of a full one.
 
     +0x000  u32       1 if the entry exists, -1 if free
     +0x004  char[22]  name, Shift-JIS, NUL-terminated
-    +0x01A  char      description, NUL-terminated, "
-" for line breaks
-    +0x0BC  u32       1 on healing skills only
-    +0x0C0  u32       3 on healing skills only
+    +0x01A  char      description, NUL-terminated, "\n" for line breaks
+    +0x0BC  u32       0 or 1
+    +0x0C0  u32       0..3
+    +0x0C4  u32       always 0
     +0x0C8  u32       0..25
-    +0x0D0  u32       1..7
-    +0x0D8  u32       0 or 1
-    +0x0DC  u32       0..256   — power, on the evidence below
+    +0x0CC  u32       always 0
+    +0x0D0  u32       0..7
+    +0x0D4  u32       always 0
+    +0x0D8  u32       target: 0 one, 1 all
+    +0x0DC  u32       effect points
     +0x0E0  i32       effect id, -1 for none
-    +0x0E4  u32       0..30    — MP cost, on the evidence below
+    +0x0E4  u32       cost in points
 
 Session 3 had guessed fifteen entries at `+0x230`, from the lattice of `-1`
 words alone. Both readings end at the same offset, which is why the wrong one
@@ -345,14 +347,47 @@ The effect id has independent confirmation. Of fifteen named skills in
 own description reads "The white light from the sword damage demonic foes."
 Nothing in the capture could have produced that agreement by accident.
 
-`+0x0DC` and `+0x0E4` are named on correlation, not on a controlled change:
-`+0x0DC` runs 128, 96, 256, 200 across the Swordfighter's four skills and
-drops to 0 for the joke classes, and `+0x0E4` runs 10, 20, 30, 20 and is 0
-wherever `+0x0DC` is. One capture that sets an MP cost would settle both.
+A third capture settled the last three fields at once. `skillcost.ps2` opened
+`HOLYSWORD` again and set its cost to 33, its effect to 77 points, and its
+target from *1 target* to *all enemies*. `bytes_used` did not move, and
+outside the checksum the file differs in exactly one contiguous 13-byte run,
+at `+0x0D8` of entry 0:
+
+    +0x0D8    0 -> 1     target
+    +0x0DC    0 -> 77    effect points   (0x4D)
+    +0x0E0   22 -> 22    effect id, untouched
+    +0x0E4    0 -> 33    cost            (0x21)
+
+Three named fields in one run, with the already-known effect id sitting
+between two of them and holding still — the alignment is not open to
+interpretation. It also confirms the correlation Session 4 had only guessed
+at: `+0x0DC` runs 128, 96, 256, 200 across the Swordfighter's four skills and
+`+0x0E4` runs 10, 20, 30, 20, exactly the two fields the editor just wrote.
+The cost is not capped at the 30 seen in `sample1`; the editor accepted 33.
+
+Read back across the demo, the target flag is only ever 0 or 1, and it means
+what it says:
+
+    one   Sonic Blade, Thunder Slash, Arrow Flash, Aerial Blade,
+          Butler Blitz, ヒール
+    all   Volcano Rave, Megid Arc, Healing Plus, Healing Wind,
+          Infernal Flames, Butler Beam, and the four joke skills
+
+Every single-target entry is a melee strike and every group entry is a spell,
+a beam or a party heal. No capture was needed to believe it.
+
+The rest of the numeric block stays unconfirmed, and it is smaller than it
+looks: `+0x0C4`, `+0x0CC` and `+0x0D4` are zero on all sixteen named skills in
+the demo, so only four fields carry anything. `+0x0C0` is 3 on the three
+healing skills and 0 everywhere else, which reads as a recovery flag or an
+element id. `+0x0BC` is 1 on those same three *and* on *Infernal Flames* —
+Session 4 called it healing-only, which the wider read disproves; magic
+against physical fits the four better. `+0x0C8` (0..25) and `+0x0D0` (0..7)
+look like animation and sound ids, on nothing more than their ranges.
 
 ## How the captures were used
 
-Five memory-card projects, each one change apart:
+Nine memory-card projects, each one change apart:
 
     empty        2,844 bytes used, 0 records
     newclass     7,036            1 record   (+4,192)
@@ -362,6 +397,7 @@ Five memory-card projects, each one change apart:
     onemap      50,976            3 records  (+39,748: a field and its map)
     onetech     50,976            3 records  (one skill, inside the record)
     twotech     50,976            3 records  (a second skill and one effect)
+    skillcost   50,976            3 records  (cost, points and target on one skill)
 
 The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
 settles the allocator: the overhead repeats on every allocation and records
@@ -376,6 +412,9 @@ single byte, is what cracked it.
   of a record's variable part, but why Room Data needs 68 bytes of it and
   System Data 2,232 is unclear.
 * **The 19,584 trailing bytes** of a Field's map data.
+* **Four words of a skill entry** — `+0x0BC`, `+0x0C0`, `+0x0C8` and
+  `+0x0D0` carry values we can only correlate; the block's other three words
+  are zero everywhere we can read.
 * **The fixed fields** between `+0xA4` and `+0x200` of the global header.
 * **Writing a project back to a memory card**, which needs the ECC in the
   spare area of each 528-byte page recomputed. The project file itself we can
