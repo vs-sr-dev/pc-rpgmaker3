@@ -295,7 +295,7 @@ last entry running eight bytes short of a full one.
     +0x004  char[22]  name, Shift-JIS, NUL-terminated
     +0x01A  char      description, NUL-terminated, "\n" for line breaks
     +0x0BC  u32       skill type: 0 uses HP, 1 is magic and uses MP
-    +0x0C0  u32       effect category, 3 = Recovery
+    +0x0C0  u32       effect category, 0..4
     +0x0C4  u32       always 0
     +0x0C8  u32       visual effect, an index into the editor's pick-list
     +0x0CC  u32       always 0
@@ -391,14 +391,21 @@ the checksum is one contiguous run:
 Both pick-lists live in the **executable**, not in the project, and both
 resolve exactly.
 
-`Animation` is a plain array of eight 16-byte names at file offset `0x3EDE20`,
-introduced by the label "Animation" in the record before it:
+`Animation` is a table of eight pointers at `0x370414`, labelled "Animation"
+in the slot before the first entry:
 
     0 Magic/Item 1   2 Attack 1   4 Attack 3   6 Special Attack
-    1 Magic/Item 2   3 Attack 2   5 Attack 4   7 Attack 5
+    1 Magic/Item 2   3 Attack 2   5 Attack 4   7 Throw
 
 *Special Attack* is index 6, which is what the editor wrote. The 0..7 range
 Session 4 measured across the demo is not a sample — it is the whole domain.
+
+The strings for indices 0 to 6 sit consecutively at `0x3EDE20`, sixteen bytes
+apart, so reading them inline works — and then index 7 points away to *Throw*
+at `0x4F9E58`, leaving an unreferenced "Attack 5" in the slot the inline read
+lands on. This was found the hard way: a card written with animation 7
+displayed *Throw*. The eighth animation was renamed and the old string was
+left where it was.
 
 `Visual Effect` is harder, and the difficulty is itself the finding. At
 `0x3A80D8` sit 64 records of `{ char name[22]; i16 id, id2, se; }`, *None*
@@ -460,12 +467,19 @@ technique. Session 4 read it
 as healing-only, which the wider list disproves. Those same strings name
 `+0x0DC`: *effect points* is the editor's own term for it.
 
-`+0x0C0` is the editor's second type dropdown, and `healfx.ps2` named one of
-its values outright: choosing **Recovery** wrote 3. It is 3 on the three
-recovery skills in the demo and 0 on everything else, including the damaging
-spell, so it is a category rather than a school — and it is what picks the
-sub-list `+0x0C8` counts within. Two values between them are never used by
-anything we hold.
+`+0x0C0` is the editor's second type dropdown, and it is fully named. The
+pointer table at `0x32ADAC`, labelled "Effects", holds all five:
+
+    0 Attacks   1 Enhancing   2 Disabling   3 Recovery   4 Special Traits
+
+`healfx.ps2` gave the first of those from the editor's side — choosing
+*Recovery* wrote 3 — and `predict.ps2` confirmed 1 and 2 by writing them and
+reading *Enhancing* and *Disabling* back off the screen. Only *Special
+Traits* has never been seen on anything.
+
+The category picks the sub-list `+0x0C8` counts within, but only *Recovery*
+takes a different one: `predict.ps2` gave a *Disabling* skill visual effect 4
+and the editor showed *Fireball (Green)*, index 4 of the main list.
 
 ### The add-effect list
 
@@ -485,13 +499,25 @@ skill with no effect stores. *Megid Arc* and the `twotech` capture both hold
 **Stop** — a lightning strike that paralyses, on a skill nobody in this
 project chose.
 
-The title implies siblings, and there are three: "Add Effects: Defense",
-"Add Effects: Special Traits" and "Add Effects: Weaknesses", for the record
-types that carry those instead. There is also a separate recovery list at
-`0x2EC6D0` — *Recover HP*, *Recover MP*, *Cure Poison*, *Cure Slow*,
-*Cure Stop*, *Cure Status*, *Revive*, *Full Revive*, under a "Recovery"
-header — so `+0x0E0` is very likely category-relative in the same way
-`+0x0C8` is. *Soothe* was created with no effect, so nothing pins that yet.
+That is only the list for category 0. Each of the five categories has its own
+table, each labelled in the slot before its first entry:
+
+    Attacks         0x357F78   28 entries, and the only one offering None
+    Enhancing       0x331B0C    7   Attack Power Up .. Speed Up, Fast
+    Disabling       0x333E34    7   Attack Power Down .. Speed Down, Slow
+    Recovery        0x33615C    9   Recover HP .. Revive, Full Revive
+    Special Traits  0x338484    5   Sure Run .. Encounters Up, Disarm
+
+Only *Attacks* has a *None*, so -1 is not a legal add-effect for the other
+four. `predict.ps2` wrote -1 into an *Enhancing* skill and a *Disabling* one
+and the editor showed each group's **first** entry, *Attack Power Up* and
+*Attack Power Down* — a fallback, not a reading. It did the same to a
+*Recovery* skill holding 3, which should have been *Cure Poison*, so what the
+editor does with a value it did not write itself is not yet clear.
+
+The demo's own three healing skills all store -1, which is consistent: the
+field is an **added** effect, an extra on top of what the skill already does.
+A Recovery skill with no add-effect still heals, for its effect points.
 
 ## How the captures were used
 

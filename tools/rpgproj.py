@@ -42,12 +42,17 @@ SKILLS = 16
 # names.  Offsets are into SLUS_211.78 as a file.
 ELF_VFX = 0x3A80D8
 ELF_VFX_N = 64
-ELF_ANIM = 0x3EDE20
-ELF_ANIM_N = 8
-# A table of pointers to the "Add Effects: Attacks" list, index 0 = Poison.
-# The entry before it is "None", which is the -1 a skill stores for no effect.
-ELF_EFFECT = 0x357F78
 ELF_VA = 0xFF000     # vaddr = file offset + this
+
+# Everything else the editor offers is a table of pointers with its own label
+# in the slot before the first entry.  Reading the strings inline instead of
+# through the pointers very nearly works and is wrong in exactly one place:
+# animation 7 points away to "Throw", leaving a dead "Attack 5" behind.
+ELF_ANIM = 0x370414                     # 8 entries, label "Animation" at -1
+ELF_CATEGORY = 0x32ADAC                 # 5 entries, label "Effects" at -1
+# One add-effect list per category, keyed by the value at +0x0C0.  Only
+# "Attacks" offers None, which is the -1 a skill stores for no add-effect.
+ELF_EFFECT = {0: 0x357F78, 1: 0x331B0C, 2: 0x333E34, 3: 0x33615C, 4: 0x338484}
 EXTRA_OFF = -4    # bytes of variable data beyond the type's own variable part
 
 # Names as the executable registers them, at 0x00100F48.  Two pairs share a
@@ -192,20 +197,28 @@ def elf_lists(path):
         ident, = struct.unpack_from("<h", rec, 22)
         if ident != -3:                     # -3 is a row the editor hides
             vfx.append(decode(rec[:22].split(b"\0")[0]))
-    anim = [decode(d[ELF_ANIM + i * 16:ELF_ANIM + i * 16 + 16].split(b"\0")[0])
-            for i in range(ELF_ANIM_N)]
-    eff = {-1: at(struct.unpack_from("<I", d, ELF_EFFECT - 4)[0])}
-    for i in range(64):
-        ptr, = struct.unpack_from("<I", d, ELF_EFFECT + i * 4)
-        if not ptr:
-            break
-        eff[i] = at(ptr)
-    return vfx, anim, eff
+    def table(base):
+        out = []
+        for i in range(64):
+            ptr, = struct.unpack_from("<I", d, base + i * 4)
+            if not ptr:
+                break
+            out.append(at(ptr))
+        return out
+
+    anim = table(ELF_ANIM)
+    cats = table(ELF_CATEGORY)
+    eff = {}
+    for cat, base in ELF_EFFECT.items():
+        eff[cat] = dict(enumerate(table(base)))
+        if cat == 0:                    # only Attacks offers a None
+            eff[cat][-1] = at(struct.unpack_from("<I", d, base - 4)[0])
+    return vfx, anim, cats, eff
 
 
 def show_skills(p, elf=None):
     """List every class's special skills, with the fields sessions 4-5 pinned."""
-    vfx, anim, eff = elf_lists(elf) if elf else (None, None, None)
+    vfx, anim, cats, eff = elf_lists(elf) if elf else (None,) * 4
     # A recovery skill picks from the Heal block alone, so its stored index is
     # relative to that sub-list rather than to the whole pick-list.
     heal = ["None"] + vfx[26:36] if vfx else None
@@ -222,18 +235,19 @@ def show_skills(p, elf=None):
                 continue
             ty, cat, _, ve, _, an, _, tgt, pts, fx, cost = struct.unpack_from(
                 "<11i", p.data, e + 0xBC)
-            fx = eff.get(fx, fx) if eff else fx
             if vfx:
                 lst = heal if cat == 3 else vfx
                 ve = lst[ve] if ve < len(lst) else "?%d" % ve
                 an = anim[an] if an < len(anim) else "?%d" % an
+                fx = eff.get(cat, {}).get(fx, "?%d" % fx)
+                cat = cats[cat] if cat < len(cats) else "?%d" % cat
             rows.append((name, "magic" if ty else "skill", cat,
                          "all" if tgt else "one", pts, fx, cost, ve, an))
         if not rows:
             continue
         print("  %s" % p.name_at(off))
         for r in rows:
-            print("    %-18s %-5s cat %d  %-3s %4d pts  cost %-3d  %-19s"
+            print("    %-18s %-5s %-14s %-3s %4d pts  cost %-3d  %-21s"
                   "  %-17s %s"
                   % (r[0], r[1], r[2], r[3], r[4], r[6], r[5], r[7], r[8]))
 

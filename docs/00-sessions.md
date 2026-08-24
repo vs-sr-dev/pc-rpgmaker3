@@ -283,3 +283,33 @@ project format still needed: putting a file back. `tools/ps2mc.py` now writes.
   entry 3 written from the field table alone, that no editor ever created.
 
 See `09-memory-card.md`.
+
+### What predict.ps2 came back with
+
+The card loaded. Every field of **MADEBYUS** — the special skill written into
+a blank slot from the field table alone, by no editor — read back exactly as
+written: name, description, Magic, category Disabling, all targets, 123 effect
+points, cost 45, visual effect *Fireball (Green)*, animation *Attack 2*. The
+layout is understood, not merely described.
+
+* **The category is fully named.** A pointer table at `0x32ADAC`, labelled
+  "Effects", holds *Attacks, Enhancing, Disabling, Recovery, Special Traits*.
+  The card confirmed 1 and 2 by writing them and reading the names off the
+  screen; `healfx` had already given 3 from the editor's side.
+* **The visual-effect sub-list is only special for Recovery.** A Disabling
+  skill with visual effect 4 showed *Fireball (Green)*, index 4 of the main
+  list, and *Soothe* with 10 showed *Heal 10*.
+* **The animation list was wrong, and the card caught it.** Animation 7 shows
+  *Throw*, not *Attack 5*. The real list is a table of pointers at `0x370414`;
+  reading the strings inline works for 0 to 6 and then index 7 points away,
+  leaving an unreferenced "Attack 5" behind. The eighth animation was renamed
+  and the old string never removed.
+* **Each category has its own add-effect table**, and only *Attacks* offers a
+  *None*. Writing -1 into an Enhancing and a Disabling skill made the editor
+  show each group's first entry — a fallback rather than a reading — and it
+  did the same to a Recovery skill holding 3. That the demo's own heals all
+  store -1 now makes sense: the field is an *added* effect, and a Recovery
+  skill with none still heals for its effect points.
+
+`predict2.ps2` follows up with six skills carrying in-range add-effects across
+four categories, to find out what the editor does when the value is legal.

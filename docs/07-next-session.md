@@ -41,25 +41,29 @@ never uses, to name the remaining values of `+0x0C0`.
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.
 
-## 1. Boot predict.ps2
+## 1. Boot predict2.ps2
 
-Done except for the last step, which needs a console. `tools/ps2mc.py` writes
-now, the ECC agrees with PCSX2 everywhere, and a project spliced in from
-scratch comes out bit-identical to a card PCSX2 wrote (`09-memory-card.md`).
+`predict.ps2` loaded and answered its questions — see `00-sessions.md`. It
+left one open: the editor showed each category's first add-effect for every
+value we wrote, including a legal one. `PS2saves/predict2.ps2` gives six
+skills across four categories, each with an add-effect that is in range:
 
-`PS2saves/predict.ps2` is waiting. Load it in the editor and read four
-things off the screen — they answer open questions without another capture:
+    HOLYSWORD    Attacks         5  -> Drain HP
+    SunderArmor  Enhancing       5  -> Speed Up
+    Soothe       Recovery        8  -> Full Revive
+    RECOVZERO    Recovery        0  -> Recover HP
+    DISABTHREE   Disabling       3  -> Physical Defense Down
+    TRAITSTWO    Special Traits  2  -> Encounters Down
 
-1. HOLYSWORD's animation should say **Attack 5**.
-2. Soothe's visual effect should say **Heal 10**.
-3. SunderArmor's second type is set to 1 — whatever the editor calls it names
-   one of the two categories nothing we hold uses.
-4. Soothe's add-effect is set to 3. Which recovery effect the editor shows
-   settles whether `+0x0E0` is category-relative, and how that list is based.
+If those names come up, `+0x0E0` is a plain 0-based index into the category's
+own table and the earlier fallback was the editor rejecting -1 and a value
+left over from another category. If they all show their group's first entry
+instead, the editor is not reading the field at all for these categories and
+something else carries the choice.
 
-And the real one: entry 3, **MADEBYUS**, was written into a blank slot from
-the field table alone. If the editor lists it and lets it be used, the layout
-is understood rather than merely described.
+`TRAITSTWO` also names category 4, the only one nothing we hold has ever used,
+and `RECOVZERO`, `DISABTHREE` and `TRAITSTWO` are three more skills built from
+the field table alone.
 
 ## 2. Map the record types field by field
 

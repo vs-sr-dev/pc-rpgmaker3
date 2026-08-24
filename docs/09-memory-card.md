@@ -89,3 +89,9 @@ Entry 3 is the real test: a special skill that no editor ever created, written
 into a blank slot from the field table alone, with its own name, description,
 type, category, animation, effect points and cost. If the editor lists it and
 lets it be used, the layout is not merely described — it is understood.
+
+It did load, and it did answer. See `00-sessions.md` — the short version is
+that MADEBYUS came back whole, and one prediction was wrong in a way worth
+having: animation 7 reads *Throw*, which sent us back to the executable to
+find that the animation list is a pointer table and the inline strings had a
+dead entry in the last slot. `predict2.ps2` is the follow-up.
