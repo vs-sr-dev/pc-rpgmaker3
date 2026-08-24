@@ -41,29 +41,41 @@ never uses, to name the remaining values of `+0x0C0`.
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.
 
-## 1. Boot predict2.ps2
+## 1. Boot predict3.ps2
 
-`predict.ps2` loaded and answered its questions — see `00-sessions.md`. It
-left one open: the editor showed each category's first add-effect for every
-value we wrote, including a legal one. `PS2saves/predict2.ps2` gives six
-skills across four categories, each with an add-effect that is in range:
+`predict.ps2` and `predict2.ps2` both loaded and both paid for themselves —
+see `00-sessions.md`. The second one showed that the editor gives a skill
+**two** effect selectors, not one, and that neither of them reads the field we
+had been writing. `PS2saves/predict3.ps2` settles which field carries the
+first, in a single look.
 
-    HOLYSWORD    Attacks         5  -> Drain HP
-    SunderArmor  Enhancing       5  -> Speed Up
-    Soothe       Recovery        8  -> Full Revive
-    RECOVZERO    Recovery        0  -> Recover HP
-    DISABTHREE   Disabling       3  -> Physical Defense Down
-    TRAITSTWO    Special Traits  2  -> Encounters Down
+Ten skills in `ZZZZTESTZZZZ`. The first eight are Recovery and identical
+apart from one word each:
 
-If those names come up, `+0x0E0` is a plain 0-based index into the category's
-own table and the earlier fallback was the editor rejecting -1 and a value
-left over from another category. If they all show their group's first entry
-instead, the editor is not reading the field at all for these categories and
-something else carries the choice.
+    BASE3      nothing set        -> control, should read Recover HP
+    WORD-C4    +0x0C4 = 2
+    WORD-CC    +0x0CC = 2
+    WORD-D4    +0x0D4 = 2
+    WORD-E8    +0x0E8 = 2
+    WORD-EC    +0x0EC = 2
+    PACK-C0    +0x0C0 = 3 | 2<<8   -> also says whether the category word is
+    PACK-BC    +0x0BC = 1 | 2<<8      a bitfield, or breaks if it is not
 
-`TRAITSTWO` also names category 4, the only one nothing we hold has ever used,
-and `RECOVZERO`, `DISABTHREE` and `TRAITSTWO` are three more skills built from
-the field table alone.
+Whichever one reads **Recover HP/MP** instead of *Recover HP* is the Effect
+field. If none of them moves, the choice is not in the skill entry at all.
+
+The last two are Attacks skills, and they are the control that matters most:
+
+    ADD-22     +0x0E0 = 22   -> the exact value the editor itself wrote for
+                               "Strong vs. Demons" back in twotech
+    ADD-1      +0x0E0 = 1    -> "Slow"
+
+If ADD-22 shows *Strong vs. Demons*, `+0x0E0` really is the additional effect
+and the earlier *None* was the editor rejecting 5 specifically — which would
+mean the list is filtered, the way the visual-effect list is. If ADD-22 shows
+*None* too, then something other than the stored value gates it.
+
+Worth reporting for each: the **Effect** and the **Additional effect** columns.
 
 ## 2. Map the record types field by field
 

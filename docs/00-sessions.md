@@ -313,3 +313,30 @@ layout is understood, not merely described.
 
 `predict2.ps2` follows up with six skills carrying in-range add-effects across
 four categories, to find out what the editor does when the value is legal.
+
+### predict2.ps2 asked the wrong question, and said so
+
+Six skills across four categories, each with an add-effect chosen to be in
+range. Not one of them took. Every skill displayed **index 0 of both** of the
+editor's effect selectors — and finding out there are two of them is the
+result.
+
+* **Effect** is what the skill does, one table per category: Attacks gives
+  *HP Damage / MP Damage / HP/MP Damage* at `0x32F7E4`, and Enhancing,
+  Disabling, Recovery and Special Traits their own. All five are labelled in
+  the slot before their first entry, the same shape as the animation table.
+* **Additional effect** is an extra on top, and the four "Add Effects: ..."
+  lists are its tables. Recovery has none, and the editor writes *Unused*.
+* Since all six showed index 0 of the effect table, the **Effect field is one
+  of the words that is zero in everything we hold** — `+0x0C4`, `+0x0CC`,
+  `+0x0D4`, `+0x0E8`, `+0x0EC` — or bits of one already named. Consistent
+  with the demo, where every skill damages HP or heals: index 0 either way.
+* `+0x0E0` is now unclear rather than known. `twotech` proves the editor
+  wrote 22 there for *Strong vs. Demons*, which is index 22 of "Add Effects:
+  Attacks" — but 5 in the same field of the same skill gave *None*, not
+  *Drain HP*.
+
+`predict3.ps2` settles the first of those in one look: eight otherwise
+identical Recovery skills, each with a different candidate word set to 2, so
+whichever one reads *Recover HP/MP* is the Effect field. Two Attacks skills
+carry 22 and 1 in `+0x0E0` as controls.

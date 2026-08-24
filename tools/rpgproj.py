@@ -50,9 +50,12 @@ ELF_VA = 0xFF000     # vaddr = file offset + this
 # animation 7 points away to "Throw", leaving a dead "Attack 5" behind.
 ELF_ANIM = 0x370414                     # 8 entries, label "Animation" at -1
 ELF_CATEGORY = 0x32ADAC                 # 5 entries, label "Effects" at -1
-# One add-effect list per category, keyed by the value at +0x0C0.  Only
-# "Attacks" offers None, which is the -1 a skill stores for no add-effect.
-ELF_EFFECT = {0: 0x357F78, 1: 0x331B0C, 2: 0x333E34, 3: 0x33615C, 4: 0x338484}
+# The editor gives a skill two effect selectors and picks both tables from the
+# category at +0x0C0.  ELF_EFFECT is the first, what the skill does; the
+# second, the "additional effect", is one of the "Add Effects: ..." lists and
+# we do not yet know which field carries it -- see 08-project-format.md.
+ELF_EFFECT = {0: 0x32F7E4, 1: 0x331B0C, 2: 0x333E34, 3: 0x33615C, 4: 0x338484}
+ELF_ADDEFFECT = 0x357F78                # "Add Effects: Attacks", None at -1
 EXTRA_OFF = -4    # bytes of variable data beyond the type's own variable part
 
 # Names as the executable registers them, at 0x00100F48.  Two pairs share a
@@ -208,16 +211,19 @@ def elf_lists(path):
 
     anim = table(ELF_ANIM)
     cats = table(ELF_CATEGORY)
-    eff = {}
-    for cat, base in ELF_EFFECT.items():
-        eff[cat] = dict(enumerate(table(base)))
-        if cat == 0:                    # only Attacks offers a None
-            eff[cat][-1] = at(struct.unpack_from("<I", d, base - 4)[0])
+    eff = dict(enumerate(table(ELF_ADDEFFECT)))
+    eff[-1] = at(struct.unpack_from("<I", d, ELF_ADDEFFECT - 4)[0])
     return vfx, anim, cats, eff
 
 
 def show_skills(p, elf=None):
-    """List every class's special skills, with the fields sessions 4-5 pinned."""
+    """List every class's special skills, with the fields sessions 4-5 pinned.
+
+    The effect column is `+0x0E0` resolved through "Add Effects: Attacks",
+    which the editor confirmed only for category 0; for the others it is left
+    as the raw category, because writing that field did not move what the
+    editor displays and we do not yet know what does.
+    """
     vfx, anim, cats, eff = elf_lists(elf) if elf else (None,) * 4
     # A recovery skill picks from the Heal block alone, so its stored index is
     # relative to that sub-list rather than to the whole pick-list.
@@ -239,7 +245,7 @@ def show_skills(p, elf=None):
                 lst = heal if cat == 3 else vfx
                 ve = lst[ve] if ve < len(lst) else "?%d" % ve
                 an = anim[an] if an < len(anim) else "?%d" % an
-                fx = eff.get(cat, {}).get(fx, "?%d" % fx)
+                fx = eff.get(fx, "?%d" % fx) if cat == 0 else "(cat %d)" % cat
                 cat = cats[cat] if cat < len(cats) else "?%d" % cat
             rows.append((name, "magic" if ty else "skill", cat,
                          "all" if tgt else "one", pts, fx, cost, ve, an))

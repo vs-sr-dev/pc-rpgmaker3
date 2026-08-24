@@ -296,14 +296,14 @@ last entry running eight bytes short of a full one.
     +0x01A  char      description, NUL-terminated, "\n" for line breaks
     +0x0BC  u32       skill type: 0 uses HP, 1 is magic and uses MP
     +0x0C0  u32       effect category, 0..4
-    +0x0C4  u32       always 0
+    +0x0C4  u32       always 0 in everything we hold
     +0x0C8  u32       visual effect, an index into the editor's pick-list
-    +0x0CC  u32       always 0
+    +0x0CC  u32       always 0 in everything we hold
     +0x0D0  u32       animation, 0..7
-    +0x0D4  u32       always 0
+    +0x0D4  u32       always 0 in everything we hold
     +0x0D8  u32       target: 0 one, 1 all
     +0x0DC  u32       effect points
-    +0x0E0  i32       add-effect, an index into the list below, -1 for none
+    +0x0E0  i32       the "additional effect", but see below
     +0x0E4  u32       cost in points
 
 Session 3 had guessed fifteen entries at `+0x230`, from the lattice of `-1`
@@ -481,7 +481,46 @@ The category picks the sub-list `+0x0C8` counts within, but only *Recovery*
 takes a different one: `predict.ps2` gave a *Disabling* skill visual effect 4
 and the editor showed *Fireball (Green)*, index 4 of the main list.
 
-### The add-effect list
+### Two effect selectors, not one
+
+`predict2.ps2` was meant to pin the add-effect numbering and instead showed
+that the question was wrong. The editor offers a skill **two** effect
+selectors, and both are chosen by the category:
+
+* **Effect** — what the skill does. One table per category, each labelled in
+  the slot before its first entry:
+
+      0 Attacks         0x32F7E4   HP Damage, MP Damage, HP/MP Damage
+      1 Enhancing       0x331B0C   Attack Power Up .. Speed Up, Fast
+      2 Disabling       0x333E34   Attack Power Down .. Speed Down, Slow
+      3 Recovery        0x33615C   Recover HP .. Revive, Full Revive
+      4 Special Traits  0x338484   Sure Run .. Encounters Up, Disarm
+
+* **Additional effect** — an extra on top. Also one table per category, and
+  these are the four "Add Effects: ..." lists. *Recovery* has none and the
+  editor writes "Unused" there.
+
+Six skills written across four categories all displayed **index 0 of both**:
+*HP Damage*, *Attack Power Up*, *Attack Power Down*, *Recover HP*, *Sure Run*
+for the effect, and *None*, *Anti-Physical*, *Weak vs. Death*, *Unused* for
+the additional. Nothing we wrote into `+0x0E0` moved either of them, on any
+of the six.
+
+That places the **Effect** field among the words that are zero in everything
+we hold — `+0x0C4`, `+0x0CC`, `+0x0D4`, `+0x0E8`, `+0x0EC` — or packed into
+the high bits of one we have already named. It is consistent that the demo
+never shows one: every skill in it damages HP or heals, which is index 0
+either way.
+
+`+0x0E0` is harder to place. `twotech` proves the editor wrote 22 into it when
+*Strong vs. Demons* was chosen, and *Strong vs. Demons* is index 22 of "Add
+Effects: Attacks" — but writing 5 into the same field of the same skill gave
+*None* rather than *Drain HP*. Either the displayed list is filtered the way
+the visual-effect list is, or the editor refuses a value it did not write.
+`predict3.ps2` sets each candidate word in turn on eight otherwise identical
+Recovery skills, and re-writes 22 into an Attacks skill as a control.
+
+### The additional-effect list for Attacks
 
 `+0x0E0` indexes a pointer table at file offset `0x357F78`, which labels
 itself: the word before the first entry is *None*, and the word before that is
@@ -499,25 +538,15 @@ skill with no effect stores. *Megid Arc* and the `twotech` capture both hold
 **Stop** — a lightning strike that paralyses, on a skill nobody in this
 project chose.
 
-That is only the list for category 0. Each of the five categories has its own
-table, each labelled in the slot before its first entry:
+This is the *additional* effect list for category 0, and there are three
+siblings for the other categories: "Add Effects: Defense", whose first entry
+is *Anti-Physical*; "Add Effects: Weaknesses", *Weak vs. Death*; and "Add
+Effects: Special Traits". Only the Attacks one offers a *None*, and it is the
+only one the demo's data ever exercises.
 
-    Attacks         0x357F78   28 entries, and the only one offering None
-    Enhancing       0x331B0C    7   Attack Power Up .. Speed Up, Fast
-    Disabling       0x333E34    7   Attack Power Down .. Speed Down, Slow
-    Recovery        0x33615C    9   Recover HP .. Revive, Full Revive
-    Special Traits  0x338484    5   Sure Run .. Encounters Up, Disarm
-
-Only *Attacks* has a *None*, so -1 is not a legal add-effect for the other
-four. `predict.ps2` wrote -1 into an *Enhancing* skill and a *Disabling* one
-and the editor showed each group's **first** entry, *Attack Power Up* and
-*Attack Power Down* — a fallback, not a reading. It did the same to a
-*Recovery* skill holding 3, which should have been *Cure Poison*, so what the
-editor does with a value it did not write itself is not yet clear.
-
-The demo's own three healing skills all store -1, which is consistent: the
-field is an **added** effect, an extra on top of what the skill already does.
-A Recovery skill with no add-effect still heals, for its effect points.
+The demo's three healing skills all store -1 here, which fits: the field is an
+*added* effect, an extra on top of what the skill already does, and a Recovery
+skill with none still heals for its effect points.
 
 ## How the captures were used
 
