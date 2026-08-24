@@ -258,3 +258,28 @@ effect *Heal 5*, one ally.
 The special-skill entry is now finished: every field the demo ever sets has a
 name, and `tools/rpgproj.py --skills --elf` prints a project's skills with all
 three lists resolved.
+
+### Writing a memory card
+
+With captures paused, the session pivoted to the one mechanical step the
+project format still needed: putting a file back. `tools/ps2mc.py` now writes.
+
+* **The ECC was derived, not looked up.** It is a GF(2) parity, so it is
+  linear, so it can be solved for. 1,605 chunks of `empty.ps2` fed into a
+  Gaussian elimination over 1,024 unknowns fixed the whole basis, and the
+  structure that fell out is one idea at two scales: the index of every set
+  bit XORed together, in true and complement form, across the 8 columns for
+  the first ECC byte and across the 128 rows for the other two, the lot
+  stored complemented. Three dozen lines, no magic table.
+* **It agrees with PCSX2 on every written page of all eleven cards** — some
+  60,000 pages, 240,000 chunks, no disagreement.
+* **The writer is proved by reconstruction.** Splicing `healfx.prj` into
+  `empty.ps2` rewrites 97 pages, and all 3,898 pages the project occupies
+  come out bit-identical to the real `healfx.ps2`, ECC included. The identity
+  splice is a no-op and returns the image unchanged.
+* **`PS2saves/predict.ps2`** is the payoff and an experiment: a project edited
+  by our own tools, checksummed and spliced back, with four values chosen so
+  that the editor's display tests our reading — including a special skill in
+  entry 3 written from the field table alone, that no editor ever created.
+
+See `09-memory-card.md`.

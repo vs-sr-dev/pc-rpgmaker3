@@ -525,6 +525,3 @@ single byte, is what cracked it.
 * **The two unused values of the skill category** at `+0x0C0`, and whether
   the add-effect at `+0x0E0` is category-relative the way the visual effect is.
 * **The fixed fields** between `+0xA4` and `+0x200` of the global header.
-* **Writing a project back to a memory card**, which needs the ECC in the
-  spare area of each 528-byte page recomputed. The project file itself we can
-  now build and checksum correctly.

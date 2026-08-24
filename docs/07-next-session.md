@@ -41,23 +41,25 @@ never uses, to name the remaining values of `+0x0C0`.
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.
 
-## 1. Write a project back to a memory card
+## 1. Boot predict.ps2
 
-The last mechanical step before we can hand the original engine a file we
-built. `tools/ps2mc.py` reads `.ps2` images; it needs to write them. Two
-pieces:
+Done except for the last step, which needs a console. `tools/ps2mc.py` writes
+now, the ECC agrees with PCSX2 everywhere, and a project spliced in from
+scratch comes out bit-identical to a card PCSX2 wrote (`09-memory-card.md`).
 
-* replace a file's contents in place (same length — projects are always
-  1,994,768 bytes, so no FAT surgery is needed);
-* recompute the ECC in the 16-byte spare area of each 512-byte page touched.
-  Standard PS2 memory-card Hamming, three bytes per 128-byte block.
+`PS2saves/predict.ps2` is waiting. Load it in the editor and read four
+things off the screen — they answer open questions without another capture:
 
-Self-check before touching a real card: re-encode pages we did *not* change
-and confirm the spare area comes out identical to what PCSX2 wrote.
+1. HOLYSWORD's animation should say **Attack 5**.
+2. Soothe's visual effect should say **Heal 10**.
+3. SunderArmor's second type is set to 1 — whatever the editor calls it names
+   one of the two categories nothing we hold uses.
+4. Soothe's add-effect is set to 3. Which recovery effect the editor shows
+   settles whether `+0x0E0` is category-relative, and how that list is based.
 
-Then the payoff — take `empty.ps2`, splice in a project built by our own
-tools, boot the editor, and see it load. That is validation nothing else
-gives us.
+And the real one: entry 3, **MADEBYUS**, was written into a blank slot from
+the field table alone. If the editor lists it and lets it be used, the layout
+is understood rather than merely described.
 
 ## 2. Map the record types field by field
 

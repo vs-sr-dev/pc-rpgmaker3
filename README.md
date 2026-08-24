@@ -50,6 +50,8 @@ python tools/pstrings.py E:/SLUS_211.78 -n 6 --offsets
 # PS2 memory card -> saved projects (PCSX2 .ps2 images included)
 python tools/ps2mc.py card.ps2 --list
 python tools/ps2mc.py card.ps2 --extract saves/
+python tools/ps2mc.py card.ps2 --verify-ecc               # check every page
+python tools/ps2mc.py card.ps2 --replace PATH=f --out new.ps2
 
 # project files: header, record walk, text, byte diff
 python tools/rpgproj.py saves/BASLUS-21178a/BASLUS-21178a --header --walk
@@ -57,6 +59,7 @@ python tools/rpgproj.py sample1 --walk --type 4          # just the classes
 python tools/rpgproj.py sample1 --maps --png maps/        # world maps -> PNG
 python tools/rpgproj.py sample1 --fix-checksum out.prj   # recompute the CRC-32
 python tools/rpgproj.py a/BASLUS-21178a b/BASLUS-21178a --diff
+python tools/rpgproj.py sample1 --skills --elf SLUS_211.78  # a class's skills
 
 # disassemble the executable by virtual address (needs capstone)
 python tools/mipsdis.py E:/SLUS_211.78 0x00100F48 --count 40
@@ -86,6 +89,7 @@ interesting bits.
     06-iab-video.md           how the movie codec was identified
     07-next-session.md        the plan
     08-project-format.md      the project file: header, schema and records
+    09-memory-card.md         reading and writing .ps2 card images
 
 ## Licence
 

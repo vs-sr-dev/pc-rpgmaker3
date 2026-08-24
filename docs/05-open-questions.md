@@ -23,13 +23,11 @@ What remains is meaning, not structure:
   same fields from the other side.
 * **The fixed header fields** between `+0xA4` and `+0x200`.
 
-## 2. Writing a project back to a memory card
+## 2. Writing a project back to a memory card — solved
 
-We can now build a project file and checksum it correctly, but not put it
-back where the editor will find it. A `.ps2` image stores 512-byte pages with
-a 16-byte spare area holding ECC, which has to be recomputed for every page
-touched. That is the last step before we can feed the original engine a file
-we wrote and watch it load — the strongest possible validation of the port.
+`tools/ps2mc.py` writes now. See `09-memory-card.md`. What is left of this
+question is the one part no analysis can settle: whether the console's own
+editor loads a card we built. `PS2saves/predict.ps2` is waiting for that.
 
 ## 3. `.bin` geometry and VU1 microprograms
 
