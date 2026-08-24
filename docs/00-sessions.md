@@ -152,10 +152,15 @@ Results:
 * **The allocator is settled**: a 20-byte header per allocation, records
   contiguous, `bytes_used` pointing at the header of the allocation that
   would come next.
-* **The world map is a fixed 140 x 140 grid.** Every Field record in every
-  sample has the same 39,208-byte tail, and it opens with a 24-byte header
-  that states the two dimensions; autocorrelation of the tile plane peaks
-  cleanly at a stride of 140.
+* **The world map is a fixed 140 x 140 grid**, and fully addressed. Every
+  Field record in every sample has the same 39,208-byte tail, opening with a
+  24-byte header that states the two dimensions. A capture that paints a
+  single tile settled the layout outright: the editor reported X=100, Y=76,
+  Z=128 and the one changed cell sits at index 10,740 = 76 x 140 + 100, so
+  the grid is row-major with X contiguous. The second grid is Z — 128
+  everywhere in a new field, 0 for every one of *Elgiza Isle*'s 12,687 sea
+  cells. `tools/rpgproj.py --maps --png` renders both, and the island comes
+  out with coastline, rivers, a lake and islets.
 * **Two class fields pinned outright** by the single-change captures: the
   name is inline at `+0x4C`, and `+0x120` is an attack stat, one byte.
 * The file contains **no pointers**; `+0x0C` is not a relocation base.

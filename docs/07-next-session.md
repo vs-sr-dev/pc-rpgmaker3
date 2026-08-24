@@ -20,11 +20,9 @@ attack 1):
 2. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
    types carrying the mystery flag.
-3. **`onemap.ps2`** — from a fresh project, paint a single tile somewhere
-   identifiable on the world map, save, then paint one more. Two captures
-   that differ by one tile locate the origin and the row direction of the
-   140 x 140 grid exactly, and tell us whether the trailing 19,584 bytes move
-   with it.
+3. **`onedungeon.ps2`** — create one dungeon, then one town. Both carry a
+   variable part that is *not* laid out like a Field's, and both are on the
+   list of three types with the unexplained flag.
 4. **`stats.ps2`** — from `onestat.ps2`, change *several* class numbers at
    once to distinct, recognisable values (attack 11, defence 22, speed 33…).
    One capture then labels a whole block of the class record instead of one
@@ -32,9 +30,8 @@ attack 1):
 5. **`twochar.ps2`** — a second character, to see how a Human's variable part
    grows with dialogue.
 
-If only one is possible, make it number 3: the map is the largest single
-piece of a project and the only one where we know the shape but not the
-addressing.
+If only one is possible, make it number 1: the fifteen 240-byte slots are the
+largest unexplained structure inside a record we can create to order.
 
 ## 1. Write a project back to a memory card
 

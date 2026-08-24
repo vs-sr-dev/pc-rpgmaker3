@@ -235,28 +235,42 @@ layout.
 
 `Field Data` is the same size in every project, which makes it a fixed grid,
 and its variable part says so outright. After the record's 436 fixed bytes
-come 84 bytes (that is `B[0] - 4`), then the 39,208 bytes of `extra`, which
-open with a 24-byte header:
+come 84 bytes (that is `B[0] - 4`), then the 39,208 bytes of `extra`:
 
     +0x00  u32    1
-    +0x04  u32    0x00030000
+    +0x04  u32    0x00020000 in a new field, 0x00030000 in sample1
     +0x08  float  -10.0
-    +0x0C  u32    13
+    +0x0C  u32    0 in a new field, 13 in sample1  (a terrain set?)
     +0x10  u32    140          width
     +0x14  u32    140          height
-    +0x18  …      19,600 bytes: one byte per tile, 140 x 140
-    …             19,584 further bytes, not yet identified
+    +0x18  19,600 bytes        terrain, one byte per cell
+    +0x4C58 19,584 bytes       Z, one byte per cell, sixteen cells short
 
-Autocorrelating the tile plane gives a clean peak at a row stride of 140
-bytes, with the expected harmonic at 280, which confirms the two dimension
-words. The plane ends exactly 19,600 bytes in. In `sample1`'s *Elgiza Isle*
-the dominant tile is 0x07 (12,679 of 19,600 cells) with 0x03, 0x02, 0x04 and
-0x01 making up most of the rest — a sea of one terrain with a handful of
-others drawn onto it, which is what an overworld looks like.
+**Addressing is row-major: `index = y * width + x`, with X contiguous.**
+Settled outright by a capture that paints a single tile: the editor reported
+X=100, Y=76, Z=128, and the one non-default cell in the file sits at linear
+index 10,740 — exactly 76 x 140 + 100. The alternative, 100 x 140 + 76, is
+14,076, so there is nothing left to interpret.
 
-The trailing 19,584 bytes have a completely different distribution (144
-distinct values clustered around 0x70..0x7f) and are most likely a height or
-attribute layer.
+The second grid holds Z, the editor's own third coordinate. A brand-new
+field is 128 everywhere, which is what the editor showed for the untouched
+tile, so 128 is ground level with room to carve down and build up. In
+`sample1`'s *Elgiza Isle* it is 0 for **every one of the 12,687 sea cells**
+and non-zero for 97.6 % of land cells, ranging 0..181. Rendered, it is the
+island's silhouette.
+
+The Z grid stops sixteen bytes short of a full 140 x 140: 19,584 rather than
+19,600. Autocorrelation still peaks cleanly at a stride of 140, so it is the
+same grid with the last sixteen cells of the bottom row simply not written.
+
+`tools/rpgproj.py --maps --png out/` writes both grids as PNGs. *Elgiza
+Isle* comes out as a coastline with rivers, a lake and a scatter of islets to
+the south — the shape a world map should have, which is the last confirmation
+the orientation needed.
+
+Dungeon and Town records also carry a variable part, but not in this layout:
+their blob does not open with a dimension pair, so their interiors are
+described some other way.
 
 ## Anatomy of a class record (type 4, 4,172 bytes)
 

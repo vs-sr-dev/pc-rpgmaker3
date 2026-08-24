@@ -4,6 +4,7 @@
     python tools/rpgproj.py project --header
     python tools/rpgproj.py project --walk
     python tools/rpgproj.py project --walk --type 4      # one record type only
+    python tools/rpgproj.py project --maps --png out/
     python tools/rpgproj.py project --strings
     python tools/rpgproj.py a b --diff
     python tools/rpgproj.py project --fix-checksum out   # rewrite with a valid CRC
@@ -86,6 +87,30 @@ class Project:
     def name_at(self, off):
         return decode(self.data[off + NAME_OFF:off + NAME_OFF + 32].split(b"\0")[0])
 
+    def maps(self):
+        """Yield (name, width, height, tiles, heights) for every map record.
+
+        A map's grid lives in the record's variable part, after the fixed
+        record and the `var - 4` bytes that precede it.  The blob opens with a
+        24-byte header stating the two dimensions, then one byte per cell of
+        terrain, then the same grid again holding Z.  Both are addressed
+        row-major, `index = y * width + x`, confirmed by painting a single
+        tile in the editor at X=100 Y=76 and finding it at index 10,740.
+
+        The Z grid is sixteen bytes short of the full width*height; the last
+        sixteen cells of the bottom row are simply not stored.
+        """
+        for off, ident, kind, extra in self.walk():
+            if not extra or kind not in (0, 1, 2):
+                continue
+            blob = off + self.size[kind] + self.var[kind] - 4
+            w, h = struct.unpack_from("<2I", self.data, blob + 0x10)
+            if not (0 < w * h <= extra):
+                continue
+            tiles = self.data[blob + 0x18:blob + 0x18 + w * h]
+            z = self.data[blob + 0x18 + w * h:blob + extra]
+            yield self.name_at(off), w, h, tiles, z
+
 
 def decode(b):
     for enc in ("ascii", "cp932"):
@@ -133,6 +158,45 @@ def show_walk(p, only=None):
     print("  %d records, objects field says %d" % (n, p.objects - 1))
 
 
+def write_png(path, w, h, rgb):
+    raw = b"".join(b"\x00" + rgb[y * w * 3:(y + 1) * w * 3] for y in range(h))
+
+    def chunk(tag, data):
+        c = tag + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+    open(path, "wb").write(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b""))
+
+
+# Enough distinct hues to tell terrain types apart; not the game's palette.
+TERRAIN = [(60, 90, 60), (110, 150, 70), (150, 140, 90), (90, 130, 60),
+           (170, 160, 120), (120, 110, 100), (200, 190, 150), (40, 70, 140),
+           (150, 150, 150), (200, 200, 210)]
+
+
+def show_maps(p, outdir=None):
+    for name, w, h, tiles, z in p.maps():
+        used = sorted(set(tiles))
+        print("  %-20s %dx%d  %d terrain values %s"
+              % (name or "(unnamed)", w, h, len(used), used[:12]))
+        if outdir is None:
+            continue
+        safe = re.sub(r"[^\w.-]", "_", name) or "map"
+        rgb = bytearray()
+        for v in tiles:
+            rgb += bytes(TERRAIN[v % len(TERRAIN)])
+        write_png("%s/%s.terrain.png" % (outdir, safe), w, h, bytes(rgb))
+        # The Z grid stops sixteen cells short; pad so the image stays square.
+        zz = z + b"\0" * (w * h - len(z))
+        write_png("%s/%s.height.png" % (outdir, safe), w, h,
+                  bytes(b for v in zz for b in (v, v, v)))
+        print("     -> %s/%s.terrain.png and .height.png" % (outdir, safe))
+
+
 def show_diff(a, b):
     runs = []
     cur = None
@@ -159,6 +223,8 @@ def main():
     ap.add_argument("--walk", action="store_true")
     ap.add_argument("--type", type=int, help="with --walk, show only this type")
     ap.add_argument("--strings", action="store_true")
+    ap.add_argument("--maps", action="store_true", help="list the map records")
+    ap.add_argument("--png", metavar="DIR", help="with --maps, write PNGs there")
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--fix-checksum", metavar="OUT",
                     help="write a copy with the CRC-32 recomputed")
@@ -183,10 +249,12 @@ def main():
         p = Project(blob)
         if len(blobs) > 1:
             print("== %s" % f)
-        if args.header or not (args.walk or args.strings):
+        if args.header or not (args.walk or args.strings or args.maps or args.png):
             show_header(p)
         if args.walk:
             show_walk(p, args.type)
+        if args.maps or args.png:
+            show_maps(p, args.png)
         if args.strings:
             for off, s in strings(blob, p.used):
                 print("  0x%06X  %s" % (off, s))

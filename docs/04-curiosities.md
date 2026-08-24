@@ -258,5 +258,11 @@ varies. Its 24-byte header says why: two words reading 140 and 140, then
 
 The map is not something the user sizes. Every RPG Maker 3 world, in every
 project anyone ever built on the console, is exactly 140 tiles square. In
-*Dear Brave Heart* 12,679 of those 19,600 cells hold tile 0x07 — the sea that
+*Dear Brave Heart* 12,687 of those 19,600 cells hold tile 0x07 — the sea that
 *Elgiza Isle* sits in.
+
+A second grid of the same shape follows, holding the editor's Z. A new field
+is 128 everywhere — mid-scale, so the user can carve down as far as build up —
+and in *Elgiza Isle* it is 0 for **every single one** of those 12,687 sea
+cells. Rendered side by side, the two grids are the same island: coastline,
+rivers, a lake, and a scatter of islets to the south.

@@ -14,8 +14,9 @@ What remains is meaning, not structure:
 
 * **The flag** in the type descriptor — 1 for Dungeon, Town and Human, 0 for
   the other seventeen.
-* **The trailing 19,584 bytes** of a Field record's map data, after the
-  140 x 140 tile plane. Distribution suggests height or attributes.
+* **Dungeon and Town interiors.** Both carry a variable part, but it does not
+  open with a dimension pair the way a Field's does, so they are laid out some
+  other way.
 * **Field-by-field layout of each record type.** Only two are pinned so far
   (a class's name at `+0x4C` and an attack stat at `+0x120`). The editor
   makes this cheap: change one value, save, diff. `.smp` presets give the

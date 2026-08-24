@@ -54,6 +54,7 @@ python tools/ps2mc.py card.ps2 --extract saves/
 # project files: header, record walk, text, byte diff
 python tools/rpgproj.py saves/BASLUS-21178a/BASLUS-21178a --header --walk
 python tools/rpgproj.py sample1 --walk --type 4          # just the classes
+python tools/rpgproj.py sample1 --maps --png maps/        # world maps -> PNG
 python tools/rpgproj.py sample1 --fix-checksum out.prj   # recompute the CRC-32
 python tools/rpgproj.py a/BASLUS-21178a b/BASLUS-21178a --diff
 
