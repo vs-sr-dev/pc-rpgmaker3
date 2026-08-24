@@ -275,24 +275,51 @@ described some other way.
 ## Anatomy of a class record (type 4, 4,172 bytes)
 
 Out of 4,172 bytes, only 174 are non-zero in a default class, which makes the
-skeleton easy to read. Thirty-nine words hold `-1`:
-
-* two in the record header (the link pair above);
-* six consecutive at `+0x13C`..`+0x150` — an empty six-slot array;
-* the remaining thirty-one form a lattice with a stride of **240 bytes**
-  starting at `+0x234`: fifteen pairs at `+0x00`/`+0x10` of each 240-byte
-  block, then one last word at `+0x1044` where the record runs out.
-
-So a class carries an array of fifteen 240-byte entries, all empty in a
-default class — very likely the techniques the class learns.
-
-Two fields are pinned exactly, by captures that changed one thing each:
+skeleton easy to read. Three fields are pinned outright by captures that
+changed one thing each:
 
     +0x4C   char   name; renaming to ZZZZTESTZZZZ changed those 12 bytes and
                    nothing else, and left bytes_used untouched, so the field
                    is fixed-size and inline
     +0x120  u8     the first attack stat; setting it from 0 to 1 in the editor
                    changed this single byte and the checksum, nothing more
+    +0x140  ...    the special-skill array, below
+
+### The special-skill array
+
+A class carries **sixteen 240-byte slots starting at `+0x140`**, running to
+`+0x1040` and leaving twelve bytes at the end of the record. Each slot:
+
+    +0x00  u32    0        (-1 in slot 0)
+    +0x04  u32    -1
+    +0x14  u32    1 if the slot is allocated, -1 if free
+    +0x18  char   the skill's name, Shift-JIS, NUL-padded
+
+Session 3 had guessed fifteen slots at `+0x230`, from the lattice of `-1`
+words alone. Both readings end at the same place, which is why the wrong one
+looked right; the `onetech.ps2` capture settles it, because the skill's name
+landed at `+0x158` — that is slot 0 plus 0x18, and nowhere near `+0x230`.
+
+Creating one Special Skill named `HOLYSWORD` changed exactly two things in
+the whole file, besides the checksum: those nine bytes at `+0x158`, and the
+marker of slot 1 flipping from -1 to 1. `bytes_used` did not move, so the
+array is part of the fixed record and is not allocated on demand.
+
+The marker means "allocated", not "in use": the editor keeps one allocated
+but unnamed slot at the end of the list, which is why a default class already
+has slot 0 marked and empty. Reading `sample1` back confirms it, and gives
+the demo's whole skill list:
+
+    Swordfighter   Sonic Blade, Volcano Rave, Megid Arc, -, Thunder Slash, -
+    Hunter         Arrow Flash, -, -
+    Initiate       Healing Plus, -
+    Noble Wing     Aerial Blade, Healing Wind, -
+    Wise Man       Infernal Flames, -, -
+    Superbutler    Butler Blitz, Butler Beam, -
+    Chicken        Meteo Most Fowl, -
+
+Swordfighter's fourth slot is allocated and unnamed with a named skill after
+it, so blanks are not only trailing — the marker really is per slot.
 
 ## How the captures were used
 
@@ -303,6 +330,8 @@ Five memory-card projects, each one change apart:
     twoclasses  11,228            2 records  (+4,192)
     renamed     11,228            2 records  (name only)
     onestat     11,228            2 records  (one byte only)
+    onemap      50,976            3 records  (+39,748: a field and its map)
+    onetech     50,976            3 records  (one skill, inside the record)
 
 The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
 settles the allocator: the overhead repeats on every allocation and records

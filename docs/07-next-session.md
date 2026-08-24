@@ -14,9 +14,10 @@ handful of bytes that actually moved.
 Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
 attack 1):
 
-1. **`onetech.ps2`** — add one technique to the renamed class. Should light up
-   the first of the fifteen 240-byte entries at `+0x230` and settle what that
-   array is. Still the most informative single change available.
+1. **`twotech.ps2`** — add a *second* skill to `ZZZZTESTZZZZ`, and give the
+   first one a real effect (element, power, MP cost). One skill told us where
+   the array is; two tell us the layout inside a 240-byte slot, which is 216
+   bytes still unread.
 2. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
    types carrying the mystery flag.
@@ -30,8 +31,8 @@ attack 1):
 5. **`twochar.ps2`** — a second character, to see how a Human's variable part
    grows with dialogue.
 
-If only one is possible, make it number 1: the fifteen 240-byte slots are the
-largest unexplained structure inside a record we can create to order.
+If only one is possible, make it number 1: a 240-byte slot with one field
+known is the largest unexplained structure we can create to order.
 
 ## 1. Write a project back to a memory card
 
@@ -110,7 +111,19 @@ the EE side already; the VU side needs its own decoder.
 * Can the USA editor actually load `sample2` and `sample3`, the two that were
   never translated (curiosity 16)?
 
-## 6. Carried over
+## 6. Beyond parity — the frame rate
+
+PCSX2 shows the whole game running at 30 fps. Once the port is at parity,
+seeing whether it can run at 60 is a genuinely nice thing to try. The
+question is not rendering but what else is tied to the frame counter: the
+keyframe cutscene sequencer, battle timing, and any event script that counts
+frames rather than seconds. The `.iab` movies are a separate clock and would
+not be affected.
+
+Worth noting now rather than later, because it is cheap to keep the port's
+update step frame-rate independent from the start and expensive to retrofit.
+
+## 7. Carried over
 
 The `.iab` frame header work is untouched and still open — see
 `05-open-questions.md` question 4. It sits below the project format because

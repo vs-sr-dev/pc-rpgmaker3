@@ -161,8 +161,15 @@ Results:
   everywhere in a new field, 0 for every one of *Elgiza Isle*'s 12,687 sea
   cells. `tools/rpgproj.py --maps --png` renders both, and the island comes
   out with coastline, rivers, a lake and islets.
-* **Two class fields pinned outright** by the single-change captures: the
-  name is inline at `+0x4C`, and `+0x120` is an attack stat, one byte.
+* **Three class fields pinned outright** by the single-change captures: the
+  name is inline at `+0x4C`, `+0x120` is an attack stat (one byte), and
+  `+0x140` starts an array of **sixteen 240-byte special-skill slots** —
+  session 3 had guessed fifteen at `+0x230`, and both guesses end at the same
+  offset, which is why the wrong one looked right. Creating one skill named
+  `HOLYSWORD` moved exactly nine bytes at `+0x158` (slot 0 + 0x18) and one
+  marker word, with `bytes_used` unchanged. Read back, `sample1` gives the
+  demo's whole skill list: Sonic Blade, Volcano Rave, Megid Arc, Thunder
+  Slash for the Swordfighter, down to Meteo Most Fowl for the Chicken.
 * The file contains **no pointers**; `+0x0C` is not a relocation base.
 * `tools/mipsdis.py` added — disassemble the executable by virtual address.
 
