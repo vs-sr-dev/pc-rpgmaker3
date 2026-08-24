@@ -340,3 +340,27 @@ result.
 identical Recovery skills, each with a different candidate word set to 2, so
 whichever one reads *Recover HP/MP* is the Effect field. Two Attacks skills
 carry 22 and 1 in `+0x0E0` as controls.
+
+### predict3.ps2: two rules, and a narrower search
+
+* **`+0x0E0` is the additional effect after all, and a plain index.** Two
+  Attacks skills carrying 22 and 1 read back *Strong vs. Demons* and *Slow*,
+  straight off the table. The unexplained case is the one value 5, which
+  showed *None* instead of *Drain HP* — the value, not the field.
+* **An out-of-range value displays blank, not as index 0.** `+0x0C0` set to
+  `3 | 2<<8` left the category empty; `+0x0BC` to `1 | 2<<8` left the type
+  empty. Neither is a bitfield, and — the useful part — every *index 0* we
+  have seen was a real reading of a zero field, not a fallback.
+* **The Effect field is not in the numeric block.** All five words that are
+  zero everywhere were set to 2 on otherwise identical Recovery skills and
+  none moved the display.
+* Also free: a Recovery skill whose effect is *Recover HP* is offered **no
+  additional effect at all**, so that selector is gated on the effect rather
+  than on the category.
+
+That leaves the description. It is declared to `+0x0BB` but no skill in any
+project reaches past `+0x055`, so about ninety-eight bytes of every skill ever
+saved are zero. `predict4.ps2` sweeps them with three Recovery skills, each
+setting eight words of the gap to 1..8 — values the nine-entry Recovery table
+turns into eight distinguishable names, so whichever name appears says which
+word.

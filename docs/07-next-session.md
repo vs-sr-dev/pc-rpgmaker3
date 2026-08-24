@@ -41,41 +41,39 @@ never uses, to name the remaining values of `+0x0C0`.
 If only one is possible, make it number 3, `stats.ps2`: several class numbers
 changed at once labels a whole block of the record instead of one byte.
 
-## 1. Boot predict3.ps2
+## 1. Boot predict4.ps2
 
-`predict.ps2` and `predict2.ps2` both loaded and both paid for themselves —
-see `00-sessions.md`. The second one showed that the editor gives a skill
-**two** effect selectors, not one, and that neither of them reads the field we
-had been writing. `PS2saves/predict3.ps2` settles which field carries the
-first, in a single look.
+Three cards in and each has paid for itself — see `00-sessions.md`. The
+search is now down to one field, the skill's **Effect**, and one card should
+end it.
 
-Ten skills in `ZZZZTESTZZZZ`. The first eight are Recovery and identical
-apart from one word each:
+`PS2saves/predict4.ps2`, five skills in `ZZZZTESTZZZZ`:
 
-    BASE3      nothing set        -> control, should read Recover HP
-    WORD-C4    +0x0C4 = 2
-    WORD-CC    +0x0CC = 2
-    WORD-D4    +0x0D4 = 2
-    WORD-E8    +0x0E8 = 2
-    WORD-EC    +0x0EC = 2
-    PACK-C0    +0x0C0 = 3 | 2<<8   -> also says whether the category word is
-    PACK-BC    +0x0BC = 1 | 2<<8      a bitfield, or breaks if it is not
+    GAP-5C-78    Recovery, +0x05C..+0x078 set to 1..8
+    GAP-7C-98    Recovery, +0x07C..+0x098 set to 1..8
+    GAP-9C-B8    Recovery, +0x09C..+0x0B8 set to 1..8
+    NUM-WORDS    Recovery, the five numeric-block zeros set to 1..5
+    ADD-5        Attacks,  +0x0E0 = 5
 
-Whichever one reads **Recover HP/MP** instead of *Recover HP* is the Effect
-field. If none of them moves, the choice is not in the skill entry at all.
+The three GAP skills cover the whole unused tail of the description in one
+pass. Read each one's **Effect**: *Recover HP* means nothing in that span
+matters, and anything else names the word outright, because the eight values
+map to eight different entries —
 
-The last two are Attacks skills, and they are the control that matters most:
+    1 Recover MP   3 Cure Poison  5 Cure Stop    7 Revive
+    2 Recover HP/MP 4 Cure Slow   6 Cure Status  8 Full Revive
 
-    ADD-22     +0x0E0 = 22   -> the exact value the editor itself wrote for
-                               "Strong vs. Demons" back in twotech
-    ADD-1      +0x0E0 = 1    -> "Slow"
+So *Cure Slow* on GAP-7C-98 would mean `+0x07C + 3*4 = +0x088`, and so on.
+`NUM-WORDS` re-runs the numeric-block words with low, certainly-valid values
+in case 2 was refused for some reason.
 
-If ADD-22 shows *Strong vs. Demons*, `+0x0E0` really is the additional effect
-and the earlier *None* was the editor rejecting 5 specifically — which would
-mean the list is filtered, the way the visual-effect list is. If ADD-22 shows
-*None* too, then something other than the stored value gates it.
+`ADD-5` is the loose end: does it show *Drain HP*, or *None* as before? If
+*None*, then some entries of the additional-effect list are unavailable to
+skills the way three visual effects are hidden.
 
-Worth reporting for each: the **Effect** and the **Additional effect** columns.
+If every GAP skill reads *Recover HP*, the Effect is not stored in the skill
+entry at all, and the next place to look is the executable — find the editor
+code that fills that dropdown and see what it reads.
 
 ## 2. Map the record types field by field
 

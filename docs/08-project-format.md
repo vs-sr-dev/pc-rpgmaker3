@@ -293,7 +293,9 @@ last entry running eight bytes short of a full one.
 
     +0x000  u32       1 if the entry exists, -1 if free
     +0x004  char[22]  name, Shift-JIS, NUL-terminated
-    +0x01A  char      description, NUL-terminated, "\n" for line breaks
+    +0x01A  char      description, NUL-terminated, "\n" for line breaks;
+                      nothing in any project reaches past +0x055
+    +0x05C  ...       zero in every skill of every project we hold
     +0x0BC  u32       skill type: 0 uses HP, 1 is magic and uses MP
     +0x0C0  u32       effect category, 0..4
     +0x0C4  u32       always 0 in everything we hold
@@ -506,19 +508,36 @@ for the effect, and *None*, *Anti-Physical*, *Weak vs. Death*, *Unused* for
 the additional. Nothing we wrote into `+0x0E0` moved either of them, on any
 of the six.
 
-That places the **Effect** field among the words that are zero in everything
-we hold — `+0x0C4`, `+0x0CC`, `+0x0D4`, `+0x0E8`, `+0x0EC` — or packed into
-the high bits of one we have already named. It is consistent that the demo
-never shows one: every skill in it damages HP or heals, which is index 0
-either way.
+`predict3.ps2` then ruled out the obvious places and gave two rules that make
+the rest of the search cheap.
 
-`+0x0E0` is harder to place. `twotech` proves the editor wrote 22 into it when
-*Strong vs. Demons* was chosen, and *Strong vs. Demons* is index 22 of "Add
-Effects: Attacks" — but writing 5 into the same field of the same skill gave
-*None* rather than *Drain HP*. Either the displayed list is filtered the way
-the visual-effect list is, or the editor refuses a value it did not write.
-`predict3.ps2` sets each candidate word in turn on eight otherwise identical
-Recovery skills, and re-writes 22 into an Attacks skill as a control.
+**`+0x0E0` is the additional effect, and it is a plain index.** Two Attacks
+skills carrying 22 and 1 read back *Strong vs. Demons* and *Slow*, exactly the
+table. What is left unexplained is the earlier skill holding 5, which showed
+*None* rather than *Drain HP* — that one value, not the field.
+
+**An out-of-range value displays as blank, not as index 0.** Setting
+`+0x0C0` to `3 | 2<<8` left the category empty on screen, and `+0x0BC` to
+`1 | 2<<8` left the type empty. Neither word is a bitfield — and, more
+usefully, every *index 0* we have seen was a real reading of a field holding
+zero, not a fallback.
+
+Which is what makes the Effect field hard to place. All five words in the
+numeric block that are zero everywhere — `+0x0C4`, `+0x0CC`, `+0x0D4`,
+`+0x0E8`, `+0x0EC` — were set to 2 on otherwise identical Recovery skills and
+**not one of them moved the display**. So the Effect is not in the numeric
+block, and it is not bits of the type or category.
+
+The remaining space is the description. The field is declared to `+0x0BB`,
+but no skill in any project we hold writes past `+0x055` — leaving roughly
+ninety-eight bytes that are zero in every skill ever saved. `predict4.ps2`
+sweeps them: three Recovery skills, each setting eight words of that gap to
+1..8, which the nine-entry Recovery table turns into eight distinguishable
+names. Whichever name appears says which word.
+
+One more thing `predict3` gave for free: the editor offers **no additional
+effect at all** for a Recovery skill whose effect is *Recover HP*. So that
+selector is gated on the effect, not merely on the category.
 
 ### The additional-effect list for Attacks
 
