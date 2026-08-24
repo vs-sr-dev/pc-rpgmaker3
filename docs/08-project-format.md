@@ -287,28 +287,46 @@ changed one thing each:
 
 ### The special-skill array
 
-A class carries **sixteen 240-byte slots starting at `+0x140`**, running to
-`+0x1040` and leaving twelve bytes at the end of the record. Each slot:
+A class carries **sixteen 240-byte entries starting at `+0x154`**. The record's
+own size confirms the count: `0x154 + 16 * 240 - 8` is exactly 4,172, the
+last entry running eight bytes short of a full one.
 
-    +0x00  u32    0        (-1 in slot 0)
-    +0x04  u32    -1
-    +0x14  u32    1 if the slot is allocated, -1 if free
-    +0x18  char   the skill's name, Shift-JIS, NUL-padded
+    +0x000  u32       1 if the entry exists, -1 if free
+    +0x004  char[22]  name, Shift-JIS, NUL-terminated
+    +0x01A  char      description, NUL-terminated, "
+" for line breaks
+    +0x0BC  u32       1 on healing skills only
+    +0x0C0  u32       3 on healing skills only
+    +0x0C8  u32       0..25
+    +0x0D0  u32       1..7
+    +0x0D8  u32       0 or 1
+    +0x0DC  u32       0..256   — power, on the evidence below
+    +0x0E0  i32       effect id, -1 for none
+    +0x0E4  u32       0..30    — MP cost, on the evidence below
 
-Session 3 had guessed fifteen slots at `+0x230`, from the lattice of `-1`
-words alone. Both readings end at the same place, which is why the wrong one
-looked right; the `onetech.ps2` capture settles it, because the skill's name
-landed at `+0x158` — that is slot 0 plus 0x18, and nowhere near `+0x230`.
+Session 3 had guessed fifteen entries at `+0x230`, from the lattice of `-1`
+words alone. Both readings end at the same offset, which is why the wrong one
+looked right for a session.
 
-Creating one Special Skill named `HOLYSWORD` changed exactly two things in
-the whole file, besides the checksum: those nine bytes at `+0x158`, and the
-marker of slot 1 flipping from -1 to 1. `bytes_used` did not move, so the
-array is part of the fixed record and is not allocated on demand.
+Two captures settled it. `onetech.ps2` created one Special Skill named
+`HOLYSWORD` and changed exactly two things in the file besides the checksum:
+nine bytes at `+0x158` and one word at `+0x244`. `twotech.ps2` then added a
+second skill, `SunderArmor`, and gave the first the effect *Strong vs.
+Demons* — three changes: `SunderArmor` at `+0x248`, a word at `+0x334`, and
+`+0x234` going from -1 to 22.
 
-The marker means "allocated", not "in use": the editor keeps one allocated
-but unnamed slot at the end of the list, which is why a default class already
-has slot 0 marked and empty. Reading `sample1` back confirms it, and gives
-the demo's whole skill list:
+The name offsets are 240 apart, which fixes the stride. The marker offsets are
+240 apart too, and sit 236 bytes past their own entry's name — that is, four
+bytes before the *next* entry's name, so the editor marks the following blank
+row as it fills the current one. And the effect landed at `+0x234`, which is
+`+0x154 + 224`: inside entry 0, the entry `HOLYSWORD` occupies. Only the base
+at `+0x154` puts it there; the old reading placed it in the wrong entry, which
+is what gave the mistake away.
+
+`bytes_used` never moved for either capture, so the array is part of the fixed
+record and is not allocated on demand.
+
+Reading `sample1` back confirms the layout and gives the demo's skill list:
 
     Swordfighter   Sonic Blade, Volcano Rave, Megid Arc, -, Thunder Slash, -
     Hunter         Arrow Flash, -, -
@@ -318,8 +336,19 @@ the demo's whole skill list:
     Superbutler    Butler Blitz, Butler Beam, -
     Chicken        Meteo Most Fowl, -
 
-Swordfighter's fourth slot is allocated and unnamed with a named skill after
-it, so blanks are not only trailing — the marker really is per slot.
+Swordfighter's fourth entry exists and is unnamed with a named skill after it,
+so blanks are not only trailing — the marker really is per entry.
+
+The effect id has independent confirmation. Of fifteen named skills in
+`sample1`, only two carry one: *Thunder Slash* has 2, and **Megid Arc has 22**
+— the same value the editor wrote for *Strong vs. Demons*, on a skill whose
+own description reads "The white light from the sword damage demonic foes."
+Nothing in the capture could have produced that agreement by accident.
+
+`+0x0DC` and `+0x0E4` are named on correlation, not on a controlled change:
+`+0x0DC` runs 128, 96, 256, 200 across the Swordfighter's four skills and
+drops to 0 for the joke classes, and `+0x0E4` runs 10, 20, 30, 20 and is 0
+wherever `+0x0DC` is. One capture that sets an MP cost would settle both.
 
 ## How the captures were used
 
@@ -332,6 +361,7 @@ Five memory-card projects, each one change apart:
     onestat     11,228            2 records  (one byte only)
     onemap      50,976            3 records  (+39,748: a field and its map)
     onetech     50,976            3 records  (one skill, inside the record)
+    twotech     50,976            3 records  (a second skill and one effect)
 
 The identical 4,192-byte step from `empty` to `newclass` to `twoclasses`
 settles the allocator: the overhead repeats on every allocation and records

@@ -166,10 +166,16 @@ Results:
   `+0x140` starts an array of **sixteen 240-byte special-skill slots** —
   session 3 had guessed fifteen at `+0x230`, and both guesses end at the same
   offset, which is why the wrong one looked right. Creating one skill named
-  `HOLYSWORD` moved exactly nine bytes at `+0x158` (slot 0 + 0x18) and one
-  marker word, with `bytes_used` unchanged. Read back, `sample1` gives the
-  demo's whole skill list: Sonic Blade, Volcano Rave, Megid Arc, Thunder
-  Slash for the Swordfighter, down to Meteo Most Fowl for the Chicken.
+  `HOLYSWORD`, then a second one with an effect, pinned the entry base at
+  `+0x154` and its stride at 240, with `bytes_used` unchanged both times: the
+  array is part of the fixed record. Inside an entry: a 22-byte name, a
+  162-byte description, then a numeric block whose effect id is confirmed —
+  the editor wrote 22 for *Strong vs. Demons*, and `sample1`'s *Megid Arc*,
+  "damages demonic foes", carries the same 22. Read back, the demo's whole
+  skill list comes out: Sonic Blade, Volcano Rave, Megid Arc, Thunder Slash
+  for the Swordfighter, down to Meteo Most Fowl for the Chicken.
+* **Curiosity 20**: the Japanese skill names are still in those fields, behind
+  the NUL, because the English overwrote them in place and is shorter.
 * The file contains **no pointers**; `+0x0C` is not a relocation base.
 * `tools/mipsdis.py` added — disassemble the executable by virtual address.
 

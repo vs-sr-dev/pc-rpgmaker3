@@ -14,10 +14,10 @@ handful of bytes that actually moved.
 Building on `onestat.ps2` (two classes, the first renamed `ZZZZTESTZZZZ` with
 attack 1):
 
-1. **`twotech.ps2`** — add a *second* skill to `ZZZZTESTZZZZ`, and give the
-   first one a real effect (element, power, MP cost). One skill told us where
-   the array is; two tell us the layout inside a 240-byte slot, which is 216
-   bytes still unread.
+1. **`skillcost.ps2`** — set an MP cost and a power on `HOLYSWORD`, to
+   distinct memorable values (MP 33, power 77). `+0x0DC` and `+0x0E4` are
+   named on correlation only; one capture confirms both, and whatever else
+   moves labels the rest of the numeric block at `+0x0BC`..`+0x0E4`.
 2. **`onechar.ps2`** — from a fresh project, add one character instead of a
    class. Gives a Human record made to order, and Human is one of the three
    types carrying the mystery flag.

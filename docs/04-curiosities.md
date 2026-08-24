@@ -266,3 +266,26 @@ is 128 everywhere — mid-scale, so the user can carve down as far as build up �
 and in *Elgiza Isle* it is 0 for **every single one** of those 12,687 sea
 cells. Rendered side by side, the two grids are the same island: coastline,
 rivers, a lake, and a scatter of islets to the south.
+
+## 20. The Japanese skill names are still in there, behind the NUL
+
+Each special skill in a class record gets a fixed 22-byte field for its name
+and 162 for its description. The localisers wrote the English over the
+Japanese in place — and English is shorter, so whatever the Japanese string
+had past the new terminator was never cleared.
+
+Read the bytes *after* the NUL and the originals surface, one tail at a time:
+
+    Sonic Blade      -> ード      (ソニックブレード)
+    Megid Arc        -> ク        (メギドアーク)
+    Thunder Slash    -> シュ      (サンダースラッシュ)
+    Arrow Flash      -> ー
+    Volcano Rave     -> 激Cヴ
+
+The descriptions leak the same way: *Sonic Blade*'s ends `ダメージ。` and
+*Megid Arc*'s `与える。` — "deals damage", "inflicts". Only the skills whose
+English name is long enough to reach the end of the field, like *Infernal
+Flames* and *Meteo Most Fowl* at fifteen characters, come out clean.
+
+It is harmless — the engine stops at the NUL — and it means a fragment of the
+Japanese original ships inside every localised project on the disc.
