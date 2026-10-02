@@ -1,0 +1,7 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "RPG Maker 3",
+  "system": "PS2",
+  "type": "port",
+  "status": "in-progress"
+}
